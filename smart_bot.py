@@ -235,8 +235,8 @@ class SmartTradingBot:
 
         confianza = max(0, min(100, puntos))
 
-        stop_loss_dinamico = max(0.3, min(1.5, atr_pct * 1.5))
-        take_profit_dinamico = stop_loss_dinamico * 2.5
+        stop_loss_dinamico = max(0.15, min(0.5, atr_pct * 1.2))
+        take_profit_dinamico = max(0.15, stop_loss_dinamico * 1.5)
 
         indicadores = {
             "rsi_5m": round(rsi_5m, 1),
