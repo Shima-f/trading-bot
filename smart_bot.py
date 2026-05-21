@@ -264,23 +264,21 @@ class SmartTradingBot:
             max_p = self.max_precios[par["symbol"]]
             caida_desde_max = ((max_p - precio) / max_p) * 100 if max_p > 0 else 0
 
-            tp = pos.get("take_profit", 1.5)
-            sl = pos.get("stop_loss", 0.5)
 
-            if gp >= tp:
+            ganancia_usd = (precio - pos["precio_entrada"]) * pos["qty"]
+            if ganancia_usd <= -0.80:
                 return "VENDER", confianza, indicadores
-
-            if gp <= -sl:
+            if ganancia_usd < 2.0:
+                if ganancia_usd > 0.5 and tendencia_h == "bajista":
+                    return "VENDER", confianza, indicadores
+                return "ESPERAR", confianza, indicadores
+            max_p = self.max_precios[par["symbol"]]
+            caida_usd = (max_p - precio) * pos["qty"]
+            if caida_usd > 0.80:
                 return "VENDER", confianza, indicadores
-
-            if gp > 0.3 and caida_desde_max > 0.4:
+            if tendencia_h == "bajista":
                 return "VENDER", confianza, indicadores
-
-            if gp > 0.2 and tendencia_h == "bajista":
-                return "VENDER", confianza, indicadores
-
             return "ESPERAR", confianza, indicadores
-
         if tendencia_h == "bajista":
             return "ESPERAR", confianza, indicadores
 
