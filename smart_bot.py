@@ -282,10 +282,16 @@ class SmartTradingBot:
         if tendencia_h == "bajista":
             return "ESPERAR", confianza, indicadores
 
+        # No comprar si BTC esta bajista (arrastra todo)
+        if par["symbol"] != "BTCUSDT":
+            btc_tend, _ = self.tendencia_1h("BTCUSDT")
+            if btc_tend != "alcista":
+                return "ESPERAR", confianza, indicadores
+
         if tendencia_h == "lateral" and confianza < 80:
             return "ESPERAR", confianza, indicadores
 
-        if confianza >= 70:
+        if confianza >= 75:
             indicadores["sl_usado"] = stop_loss_dinamico
             indicadores["tp_usado"] = take_profit_dinamico
             return "COMPRAR", confianza, indicadores
