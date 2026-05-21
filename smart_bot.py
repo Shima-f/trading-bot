@@ -264,23 +264,30 @@ class SmartTradingBot:
             max_p = self.max_precios[par["symbol"]]
             caida_desde_max = ((max_p - precio) / max_p) * 100 if max_p > 0 else 0
 
-
             ganancia_usd = (precio - pos["precio_entrada"]) * pos["qty"]
+            max_p = self.max_precios[par["symbol"]]
+            ganancia_max = (max_p - pos["precio_entrada"]) * pos["qty"]
+            caida_usd = (max_p - precio) * pos["qty"]
             if ganancia_usd <= -0.80:
                 return "VENDER", confianza, indicadores
-            if ganancia_usd < 2.0:
-                if ganancia_usd > 0.5 and tendencia_h == "bajista":
+            if ganancia_usd < 0.50:
+                if tendencia_h == "bajista" and ganancia_usd > 0.10:
                     return "VENDER", confianza, indicadores
                 return "ESPERAR", confianza, indicadores
-            max_p = self.max_precios[par["symbol"]]
-            caida_usd = (max_p - precio) * pos["qty"]
-            if caida_usd > 0.80:
-                return "VENDER", confianza, indicadores
-            if tendencia_h == "bajista":
-                return "VENDER", confianza, indicadores
-            return "ESPERAR", confianza, indicadores
-        if tendencia_h == "bajista":
-            return "ESPERAR", confianza, indicadores
+            if ganancia_usd >= 0.50 and ganancia_usd < 1.00:
+                if caida_usd > 0.30 or tendencia_h == "bajista":
+                    return "VENDER", confianza, indicadores
+                return "ESPERAR", confianza, indicadores
+            if ganancia_usd >= 1.00 and ganancia_usd < 2.00:
+                if caida_usd > 0.40 or tendencia_h == "bajista":
+                    return "VENDER", confianza, indicadores
+                return "ESPERAR", confianza, indicadores
+            if ganancia_usd >= 2.00:
+                if caida_usd > 0.50:
+                    return "VENDER", confianza, indicadores
+                if tendencia_h == "bajista":
+                    return "VENDER", confianza, indicadores
+                return "ESPERAR", confianza, indicadores
 
         # No comprar si BTC esta bajista (arrastra todo)
         if par["symbol"] != "BTCUSDT":
