@@ -12,6 +12,8 @@ STOP_LOSS_GLOBAL  = 10
 MODO_PAPER        = True
 INTERVALO_CICLO   = 300
 
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import time
 import json
 import math
@@ -504,6 +506,29 @@ class SmartTradingBot:
                 log.error(f"Error loop: {e}")
                 time.sleep(30)
 
+class StatusHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        try:
+            with open("bot_state.json", "r") as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(data.encode())
+        except Exception:
+            self.send_response(404)
+            self.end_headers()
+    def log_message(self, format, *args):
+        pass
+
+def start_web():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), StatusHandler)
+    server.serve_forever()
+
 if __name__ == "__main__":
+    t = threading.Thread(target=start_web, daemon=True)
+    t.start()
     bot = SmartTradingBot()
     bot.run()
