@@ -3,8 +3,9 @@ Smart Trading Bot v4 - Ultra Selectivo
 Solo opera en alzas confirmadas con trailing stop
 """
 
-API_KEY    = os.environ.get("BINANCE_API_KEY", "TU_API_KEY_AQUI") if __import__('os').environ.get("BINANCE_API_KEY") else "TU_API_KEY_AQUI"
-API_SECRET = os.environ.get("BINANCE_API_SECRET", "TU_API_SECRET_AQUI") if __import__('os').environ.get("BINANCE_API_SECRET") else "TU_API_SECRET_AQUI"
+import os
+API_KEY    = os.environ.get("BINANCE_API_KEY", "TU_API_KEY_AQUI")
+API_SECRET = os.environ.get("BINANCE_API_SECRET", "TU_API_SECRET_AQUI")
 
 CAPITAL_INICIAL   = 500
 STOP_LOSS_GLOBAL  = 10
