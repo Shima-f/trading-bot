@@ -1,14 +1,13 @@
 """
-Smart Trading Bot v3 - Datos reales de Binance
+Smart Trading Bot v4 - Ultra Selectivo
+Solo opera en alzas confirmadas con trailing stop
 """
 
-API_KEY    = "bFMJCy0Kkfef1mFHuPKUG3tYNDqhXX1T9Oxv1UQUS9caNZh5CxbexozHqH3eudxU"
-API_SECRET = "8nhqZ7DXJxUjmdGJ78hpKodNcMof69LgfIYabOAwg7YUyuwx5r23v8N4LcYq4QrO"
+API_KEY    = os.environ.get("BINANCE_API_KEY", "TU_API_KEY_AQUI") if __import__('os').environ.get("BINANCE_API_KEY") else "TU_API_KEY_AQUI"
+API_SECRET = os.environ.get("BINANCE_API_SECRET", "TU_API_SECRET_AQUI") if __import__('os').environ.get("BINANCE_API_SECRET") else "TU_API_SECRET_AQUI"
 
 CAPITAL_INICIAL   = 500
 STOP_LOSS_GLOBAL  = 10
-TAKE_PROFIT_PAR   = 0.8
-STOP_LOSS_PAR     = 0.4
 MODO_PAPER        = True
 INTERVALO_CICLO   = 300
 
@@ -17,15 +16,15 @@ import json
 import math
 import logging
 import os
-import random
-import urllib.request
 import ssl
-SSL_CTX = ssl.create_default_context()
-SSL_CTX.check_hostname = False
-SSL_CTX.verify_mode = ssl.CERT_NONE
+import urllib.request
 from datetime import datetime
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
+
+SSL_CTX = ssl.create_default_context()
+SSL_CTX.check_hostname = False
+SSL_CTX.verify_mode = ssl.CERT_NONE
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +35,9 @@ logging.basicConfig(
     ]
 )
 log = logging.getLogger("SmartBot")
+
+API_KEY    = os.environ.get("BINANCE_API_KEY", "TU_API_KEY_AQUI")
+API_SECRET = os.environ.get("BINANCE_API_SECRET", "TU_API_SECRET_AQUI")
 
 UNIVERSO_PARES = [
     {"symbol": "BTCUSDT",  "estrategia": "momentum",        "min_capital": 50},
@@ -52,6 +54,10 @@ REGLAS_CAPITAL = [
     {"min": 1500, "max": 999999, "max_pares": 5},
 ]
 
+def api_get(url):
+    req = urllib.request.urlopen(url, timeout=15, context=SSL_CTX)
+    return json.loads(req.read())
+
 class SmartTradingBot:
 
     def __init__(self):
@@ -60,7 +66,7 @@ class SmartTradingBot:
         self.capital_inicial = CAPITAL_INICIAL
         self.pares_activos = []
         self.posiciones = {}
-        self.historial_trades = []
+        self.historial = []
         self.ganancia_total = 0
         self.ciclo = 0
         self.inicio = datetime.now()
@@ -68,6 +74,7 @@ class SmartTradingBot:
         self.capital_por_par = CAPITAL_INICIAL / 2
         self.wins = 0
         self.losses = 0
+        self.max_precios = {}
 
     def conectar(self):
         if MODO_PAPER:
@@ -97,55 +104,41 @@ class SmartTradingBot:
         self.pares_activos = pares
         self.capital_por_par = self.capital_actual / len(pares)
         log.info(f"Pares ({len(pares)}): {[p['symbol'] for p in pares]} | ${self.capital_por_par:.2f} c/u")
-        self._guardar_estado()
 
     def obtener_precio(self, symbol):
         try:
-            url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-            req = urllib.request.urlopen(url, timeout=10, context=SSL_CTX)
-            data = json.loads(req.read())
+            data = api_get(f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}")
             return float(data["price"])
         except Exception as e:
             log.error(f"Error precio {symbol}: {e}")
             return None
 
-    def obtener_klines_reales(self, symbol, intervalo="5m", limite=100):
+    def obtener_klines(self, symbol, intervalo="5m", limite=100):
         try:
-            url = (
+            data = api_get(
                 f"https://api.binance.com/api/v3/klines"
                 f"?symbol={symbol}&interval={intervalo}&limit={limite}"
             )
-            req = urllib.request.urlopen(url, timeout=15, context=SSL_CTX)
-            raw = json.loads(req.read())
-            klines = []
-            for k in raw:
-                klines.append({
-                    "open":   float(k[1]),
-                    "high":   float(k[2]),
-                    "low":    float(k[3]),
-                    "close":  float(k[4]),
-                    "volume": float(k[5])
-                })
-            return klines
+            return [{"open": float(k[1]), "high": float(k[2]), "low": float(k[3]),
+                     "close": float(k[4]), "volume": float(k[5])} for k in data]
         except Exception as e:
-            log.error(f"Error klines {symbol}: {e}")
+            log.error(f"Error klines {symbol} {intervalo}: {e}")
             return []
 
     def calcular_rsi(self, precios, periodo=14):
         if len(precios) < periodo + 1:
             return 50.0
         deltas = [precios[i] - precios[i-1] for i in range(1, len(precios))]
-        ganancias = [d if d > 0 else 0.0 for d in deltas]
-        perdidas = [-d if d < 0 else 0.0 for d in deltas]
-        avg_g = sum(ganancias[:periodo]) / periodo
-        avg_p = sum(perdidas[:periodo]) / periodo
+        gan = [d if d > 0 else 0.0 for d in deltas]
+        per = [-d if d < 0 else 0.0 for d in deltas]
+        ag = sum(gan[:periodo]) / periodo
+        ap = sum(per[:periodo]) / periodo
         for i in range(periodo, len(deltas)):
-            avg_g = (avg_g * (periodo - 1) + ganancias[i]) / periodo
-            avg_p = (avg_p * (periodo - 1) + perdidas[i]) / periodo
-        if avg_p == 0:
+            ag = (ag * (periodo - 1) + gan[i]) / periodo
+            ap = (ap * (periodo - 1) + per[i]) / periodo
+        if ap == 0:
             return 100.0
-        rs = avg_g / avg_p
-        return 100.0 - (100.0 / (1.0 + rs))
+        return 100.0 - (100.0 / (1.0 + ag / ap))
 
     def calcular_ema(self, precios, periodo):
         if not precios:
@@ -158,48 +151,55 @@ class SmartTradingBot:
             ema = p * k + ema * (1 - k)
         return ema
 
-    def calcular_macd(self, precios):
-        if len(precios) < 26:
-            return 0.0, 0.0
-        ema12 = self.calcular_ema(precios, 12)
-        ema26 = self.calcular_ema(precios, 26)
-        macd = ema12 - ema26
-        vals = []
-        for i in range(25, len(precios)):
-            v = self.calcular_ema(precios[:i+1], 12) - self.calcular_ema(precios[:i+1], 26)
-            vals.append(v)
-        signal = self.calcular_ema(vals, 9) if len(vals) >= 9 else macd
-        return macd, signal
+    def calcular_atr(self, klines, periodo=14):
+        if len(klines) < periodo + 1:
+            return 0.0
+        trs = []
+        for i in range(1, len(klines)):
+            h = klines[i]["high"]
+            l = klines[i]["low"]
+            cp = klines[i-1]["close"]
+            tr = max(h - l, abs(h - cp), abs(l - cp))
+            trs.append(tr)
+        if len(trs) < periodo:
+            return sum(trs) / len(trs) if trs else 0
+        atr = sum(trs[:periodo]) / periodo
+        for i in range(periodo, len(trs)):
+            atr = (atr * (periodo - 1) + trs[i]) / periodo
+        return atr
 
-    def detectar_tendencia(self, klines):
-        if len(klines) < 20:
-            return "lateral"
-        ultimos = [k["close"] for k in klines[-20:]]
-        primeros = [k["close"] for k in klines[-40:-20]] if len(klines) >= 40 else ultimos
-        prom_reciente = sum(ultimos) / len(ultimos)
-        prom_anterior = sum(primeros) / len(primeros)
-        cambio = ((prom_reciente - prom_anterior) / prom_anterior) * 100
-        if cambio > 0.3:
-            return "alcista"
-        elif cambio < -0.3:
-            return "bajista"
-        return "lateral"
+    def tendencia_1h(self, symbol):
+        klines = self.obtener_klines(symbol, "1h", 50)
+        if len(klines) < 50:
+            return "desconocida", 0
+        cierres = [k["close"] for k in klines]
+        ema21 = self.calcular_ema(cierres, 21)
+        ema50 = self.calcular_ema(cierres, 50)
+        precio = cierres[-1]
+        rsi = self.calcular_rsi(cierres)
+        if precio > ema21 > ema50 and rsi > 45:
+            return "alcista", rsi
+        elif precio < ema21 < ema50 and rsi < 55:
+            return "bajista", rsi
+        return "lateral", rsi
 
     def analizar_par(self, par):
-        klines = self.obtener_klines_reales(par["symbol"])
-        if not klines or len(klines) < 50:
+        klines_5m = self.obtener_klines(par["symbol"], "5m", 100)
+        if not klines_5m or len(klines_5m) < 50:
             return "ESPERAR", 0, {}
 
-        cierres = [k["close"] for k in klines]
-        volumenes = [k["volume"] for k in klines]
+        cierres = [k["close"] for k in klines_5m]
+        volumenes = [k["volume"] for k in klines_5m]
         precio = cierres[-1]
+        atr = self.calcular_atr(klines_5m)
+        atr_pct = (atr / precio) * 100 if precio > 0 else 0
 
-        rsi = self.calcular_rsi(cierres)
+        rsi_5m = self.calcular_rsi(cierres)
         ema9 = self.calcular_ema(cierres, 9)
         ema21 = self.calcular_ema(cierres, 21)
         ema50 = self.calcular_ema(cierres, 50)
-        macd, signal = self.calcular_macd(cierres)
-        tendencia = self.detectar_tendencia(klines)
+
+        tendencia_h, rsi_1h = self.tendencia_1h(par["symbol"])
 
         vol_spike = False
         if len(volumenes) >= 20:
@@ -208,78 +208,107 @@ class SmartTradingBot:
 
         puntos = 0
 
-        if 40 <= rsi <= 60:
-            puntos += 20
-        elif 35 <= rsi < 40 or 60 < rsi <= 65:
-            puntos += 10
+        if tendencia_h == "alcista":
+            puntos += 30
+        elif tendencia_h == "lateral":
+            puntos += 5
+        elif tendencia_h == "bajista":
+            puntos -= 30
 
         if precio > ema9 > ema21 > ema50:
-            puntos += 30
-        elif precio > ema9 > ema21:
-            puntos += 18
-        elif precio > ema9:
-            puntos += 8
-
-        if macd > signal and macd > 0:
             puntos += 25
-        elif macd > signal:
+        elif precio > ema9 > ema21:
+            puntos += 12
+
+        if 40 <= rsi_5m <= 60:
+            puntos += 15
+        elif 35 <= rsi_5m < 40:
             puntos += 10
 
         if vol_spike:
             puntos += 15
 
-        if tendencia == "alcista":
-            puntos += 10
-        elif tendencia == "bajista":
-            puntos -= 15
+        ultimos_5 = cierres[-5:]
+        if all(ultimos_5[i] <= ultimos_5[i+1] for i in range(len(ultimos_5)-1)):
+            puntos += 15
 
         confianza = max(0, min(100, puntos))
-        umbral = 65 if par["estrategia"] == "momentum_volume" else 55
+
+        stop_loss_dinamico = max(0.3, min(1.5, atr_pct * 1.5))
+        take_profit_dinamico = stop_loss_dinamico * 2.5
 
         indicadores = {
-            "rsi": round(rsi, 1),
-            "precio": round(precio, 4),
+            "rsi_5m": round(rsi_5m, 1),
+            "rsi_1h": round(rsi_1h, 1),
+            "precio": round(precio, 2),
             "confianza": confianza,
-            "tendencia": tendencia,
+            "tendencia_1h": tendencia_h,
             "vol_spike": vol_spike,
-            "macd_pos": macd > signal
+            "atr_pct": round(atr_pct, 3),
+            "sl": round(stop_loss_dinamico, 2),
+            "tp": round(take_profit_dinamico, 2)
         }
 
         if par["symbol"] in self.posiciones:
             pos = self.posiciones[par["symbol"]]
             gp = ((precio - pos["precio_entrada"]) / pos["precio_entrada"]) * 100
 
-            if gp >= TAKE_PROFIT_PAR:
-                return "VENDER", confianza, indicadores
-            if gp <= -STOP_LOSS_PAR:
+            if par["symbol"] not in self.max_precios:
+                self.max_precios[par["symbol"]] = precio
+            if precio > self.max_precios[par["symbol"]]:
+                self.max_precios[par["symbol"]] = precio
+
+            max_p = self.max_precios[par["symbol"]]
+            caida_desde_max = ((max_p - precio) / max_p) * 100 if max_p > 0 else 0
+
+            tp = pos.get("take_profit", 1.5)
+            sl = pos.get("stop_loss", 0.5)
+
+            if gp >= tp:
                 return "VENDER", confianza, indicadores
 
-            if gp > 0.3 and tendencia == "bajista":
+            if gp <= -sl:
+                return "VENDER", confianza, indicadores
+
+            if gp > 0.3 and caida_desde_max > 0.4:
+                return "VENDER", confianza, indicadores
+
+            if gp > 0.2 and tendencia_h == "bajista":
                 return "VENDER", confianza, indicadores
 
             return "ESPERAR", confianza, indicadores
 
-        if tendencia == "bajista":
+        if tendencia_h == "bajista":
             return "ESPERAR", confianza, indicadores
 
-        if confianza >= umbral:
+        if tendencia_h == "lateral" and confianza < 80:
+            return "ESPERAR", confianza, indicadores
+
+        if confianza >= 70:
+            indicadores["sl_usado"] = stop_loss_dinamico
+            indicadores["tp_usado"] = take_profit_dinamico
             return "COMPRAR", confianza, indicadores
 
         return "ESPERAR", confianza, indicadores
 
-    def ejecutar_compra(self, par, capital):
+    def ejecutar_compra(self, par, capital, indicadores):
         precio = self.obtener_precio(par["symbol"])
         if not precio:
             return False
+        sl = indicadores.get("sl_usado", 0.5)
+        tp = indicadores.get("tp_usado", 1.5)
         if MODO_PAPER:
             qty = (capital * 0.999) / precio
             self.posiciones[par["symbol"]] = {
                 "qty": qty,
                 "precio_entrada": precio,
                 "capital_usado": capital,
+                "stop_loss": sl,
+                "take_profit": tp,
                 "timestamp": datetime.now().isoformat()
             }
-            log.info(f"[COMPRA] {par['symbol']} @ ${precio:.2f} | ${capital:.2f}")
+            self.max_precios[par["symbol"]] = precio
+            log.info(f"[COMPRA] {par['symbol']} @ ${precio:.2f} | SL:{sl:.2f}% TP:{tp:.2f}% | ${capital:.2f}")
             return True
         try:
             info = self.client.get_symbol_info(par["symbol"])
@@ -294,10 +323,12 @@ class SmartTradingBot:
             self.posiciones[par["symbol"]] = {
                 "qty": qty, "precio_entrada": pr,
                 "capital_usado": capital,
+                "stop_loss": sl, "take_profit": tp,
                 "order_id": orden["orderId"],
                 "timestamp": datetime.now().isoformat()
             }
-            log.info(f"[COMPRA REAL] {par['symbol']} @ ${pr:.2f}")
+            self.max_precios[par["symbol"]] = pr
+            log.info(f"[COMPRA REAL] {par['symbol']} @ ${pr:.2f} | SL:{sl:.2f}% TP:{tp:.2f}%")
             return True
         except BinanceAPIException as e:
             log.error(f"Error COMPRA {par['symbol']}: {e}")
@@ -312,8 +343,12 @@ class SmartTradingBot:
             return False
         gp = ((precio - pos["precio_entrada"]) / pos["precio_entrada"]) * 100
         gan = pos["qty"] * precio - pos["capital_usado"]
-        razon = "TAKE PROFIT" if gp >= TAKE_PROFIT_PAR else ("TENDENCIA" if gp > 0 else "STOP LOSS")
-
+        if gp >= pos.get("take_profit", 1.5):
+            razon = "TAKE PROFIT"
+        elif gp > 0:
+            razon = "TRAILING STOP"
+        else:
+            razon = "STOP LOSS"
         if MODO_PAPER:
             self.ganancia_total += gan
             self.capital_actual += gan
@@ -327,7 +362,7 @@ class SmartTradingBot:
                 f"[{razon}] {par['symbol']}: {gp:+.2f}% = ${gan:+.2f} | "
                 f"Capital: ${self.capital_actual:.2f} | WR: {wr:.0f}% ({self.wins}W/{self.losses}L)"
             )
-            self.historial_trades.append({
+            self.historial.append({
                 "symbol": par["symbol"],
                 "entrada": pos["precio_entrada"],
                 "salida": precio,
@@ -337,6 +372,8 @@ class SmartTradingBot:
                 "timestamp": datetime.now().isoformat()
             })
             del self.posiciones[par["symbol"]]
+            if par["symbol"] in self.max_precios:
+                del self.max_precios[par["symbol"]]
             return True
         try:
             self.client.create_order(
@@ -351,6 +388,8 @@ class SmartTradingBot:
                 self.losses += 1
             log.info(f"[{razon} REAL] {par['symbol']}: {gp:+.2f}% = ${gan:+.2f}")
             del self.posiciones[par["symbol"]]
+            if par["symbol"] in self.max_precios:
+                del self.max_precios[par["symbol"]]
             return True
         except BinanceAPIException as e:
             log.error(f"Error VENTA {par['symbol']}: {e}")
@@ -368,7 +407,7 @@ class SmartTradingBot:
                 time.sleep(1)
         self.estado = "pausado"
         pct = (self.ganancia_total / self.capital_inicial) * 100
-        log.info(f"Capital final: ${self.capital_actual:.2f} | Ganancia: ${self.ganancia_total:+.2f} ({pct:+.2f}%)")
+        log.info(f"Capital: ${self.capital_actual:.2f} | Ganancia: ${self.ganancia_total:+.2f} ({pct:+.2f}%)")
         self._guardar_estado()
 
     def verificar_stop_loss_global(self):
@@ -383,24 +422,18 @@ class SmartTradingBot:
         total = self.wins + self.losses
         estado = {
             "timestamp": datetime.now().isoformat(),
-            "capital_inicial": self.capital_inicial,
             "capital_actual": round(self.capital_actual, 2),
             "ganancia_total": round(self.ganancia_total, 2),
             "ganancia_pct": round((self.ganancia_total / self.capital_inicial) * 100, 2),
             "estado": self.estado,
             "ciclo": self.ciclo,
-            "modo": "PAPER" if MODO_PAPER else "REAL",
-            "pares_activos": [p["symbol"] for p in self.pares_activos],
-            "wins": self.wins,
-            "losses": self.losses,
+            "wins": self.wins, "losses": self.losses,
             "winrate": round(self.wins / total * 100, 1) if total > 0 else 0,
-            "posiciones_abiertas": len(self.posiciones),
             "posiciones": {
-                s: {"precio_entrada": p["precio_entrada"], "capital": round(p["capital_usado"], 2)}
+                s: {"entrada": p["precio_entrada"], "sl": p.get("stop_loss"), "tp": p.get("take_profit")}
                 for s, p in self.posiciones.items()
             },
-            "ultimos_trades": self.historial_trades[-15:],
-            "uptime_horas": round((datetime.now() - self.inicio).total_seconds() / 3600, 2)
+            "ultimos_trades": self.historial[-15:]
         }
         with open("bot_state.json", "w", encoding="utf-8") as f:
             json.dump(estado, f, indent=2, ensure_ascii=False)
@@ -408,18 +441,20 @@ class SmartTradingBot:
     def ciclo_trading(self):
         self.ciclo += 1
         pct = (self.ganancia_total / self.capital_inicial) * 100
-        log.info(f"== Ciclo #{self.ciclo} | ${self.capital_actual:.2f} | {pct:+.2f}% ==")
+        log.info(f"== Ciclo #{self.ciclo} | ${self.capital_actual:.2f} | {pct:+.2f}% | {self.wins}W/{self.losses}L ==")
         if self.ciclo % 10 == 1:
             self.seleccionar_pares()
         for par in self.pares_activos:
             try:
                 senal, conf, ind = self.analizar_par(par)
-                t = ind.get("tendencia", "?")
-                r = ind.get("rsi", 0)
+                t1h = ind.get("tendencia_1h", "?")
+                r = ind.get("rsi_5m", 0)
                 p = ind.get("precio", 0)
-                log.info(f"  {par['symbol']}: ${p:.2f} | RSI={r} | Conf={conf}% | {t} | -> {senal}")
+                sl = ind.get("sl", 0)
+                tp = ind.get("tp", 0)
+                log.info(f"  {par['symbol']}: ${p:.2f} | RSI={r} | Conf={conf}% | 1H:{t1h} | SL:{sl}% TP:{tp}% | -> {senal}")
                 if senal == "COMPRAR" and par["symbol"] not in self.posiciones:
-                    self.ejecutar_compra(par, self.capital_por_par)
+                    self.ejecutar_compra(par, self.capital_por_par, ind)
                 elif senal == "VENDER":
                     self.ejecutar_venta(par)
             except Exception as e:
@@ -428,11 +463,14 @@ class SmartTradingBot:
 
     def run(self):
         log.info("=" * 55)
-        log.info("Smart Trading Bot v3 - Datos Reales")
+        log.info("Smart Trading Bot v4 - Ultra Selectivo")
         log.info(f"  Modo:    {'PAPER' if MODO_PAPER else 'REAL'}")
         log.info(f"  Capital: ${CAPITAL_INICIAL}")
-        log.info(f"  TP: +{TAKE_PROFIT_PAR}% | SL: -{STOP_LOSS_PAR}% | Global: -{STOP_LOSS_GLOBAL}%")
+        log.info(f"  Stop global: -{STOP_LOSS_GLOBAL}%")
         log.info(f"  Ciclo cada {INTERVALO_CICLO}s")
+        log.info(f"  Solo compra en tendencia ALCISTA 1H")
+        log.info(f"  Stop loss y take profit DINAMICOS (ATR)")
+        log.info(f"  Trailing stop para proteger ganancias")
         log.info("=" * 55)
         if not self.conectar():
             return
