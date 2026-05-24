@@ -415,6 +415,10 @@ class SmartTradingBot:
     def pausa_ordenada(self):
         log.info("PAUSA - cerrando posiciones...")
         self.estado = "pausando"
+        if not self.es_mi_turno():
+            log.info("  Ciclo saltado - no es turno del bot LONG")
+            self._guardar_estado()
+            return
         for par in self.pares_activos:
             if par["symbol"] in self.posiciones:
                 self.ejecutar_venta(par)
@@ -474,6 +478,17 @@ class SmartTradingBot:
             except Exception as e:
                 log.error(f"Error {par['symbol']}: {e}")
         self._guardar_estado()
+
+
+    def es_mi_turno(self):
+        tend, _ = self.tendencia_1h("BTCUSDT")
+        if tend == "alcista":
+            return True
+        if tend == "bajista":
+            log.info("  [CONTROL] Mercado bajista -> turno del bot SHORT")
+        else:
+            log.info("  [CONTROL] Mercado lateral -> ninguno opera")
+        return False
 
     def run(self):
         log.info("=" * 55)

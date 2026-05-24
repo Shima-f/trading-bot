@@ -537,6 +537,10 @@ class SmartTradingBotShort:
     def pausa_ordenada(self):
         log.info("PAUSA - cerrando shorts abiertos...")
         self.estado = "pausando"
+        if not self.es_mi_turno():
+            log.info("  Ciclo saltado - no es turno del bot SHORT")
+            self._guardar_estado()
+            return
         for par in self.pares_activos:
             if par["symbol"] in self.posiciones:
                 self.ejecutar_cerrar_short(par)
@@ -618,6 +622,17 @@ class SmartTradingBotShort:
             except Exception as e:
                 log.error(f"Error {par['symbol']}: {e}")
         self._guardar_estado()
+
+
+    def es_mi_turno(self):
+        tend, _ = self.tendencia_1h("BTCUSDT")
+        if tend == "bajista":
+            return True
+        if tend == "alcista":
+            log.info("  [CONTROL] Mercado alcista -> turno del bot LONG")
+        else:
+            log.info("  [CONTROL] Mercado lateral -> ninguno opera")
+        return False
 
     def run(self):
         log.info("=" * 60)
