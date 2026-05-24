@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trading Bot - Live</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#08090c;color:#e0e4ec;font-family:'JetBrains Mono',monospace;padding:20px 24px;min-height:100vh}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #1a1d26}
+.hdr h1{font-size:20px;font-weight:300;letter-spacing:-0.5px}
+.hdr small{font-size:11px;color:#4a5068}
+.status{display:flex;align-items:center;gap:8px;background:#12141a;border:1px solid #1e2130;border-radius:100px;padding:6px 14px;font-size:12px}
+.dot{width:7px;height:7px;border-radius:50%;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
+.mc{background:#0e1018;border:1px solid #1a1d26;border-radius:10px;padding:14px 16px}
+.mc-l{font-size:10px;letter-spacing:.12em;color:#4a5068;margin-bottom:8px;text-transform:uppercase}
+.mc-v{font-size:22px;font-weight:300;letter-spacing:-1px}
+.mc-s{font-size:11px;color:#4a5068;margin-top:4px}
+.green{color:#22c55e}.red{color:#ef4444}.amber{color:#f59e0b}.muted{color:#4a5068}.purple{color:#818cf8}
+.section{font-size:10px;letter-spacing:.12em;color:#4a5068;margin:16px 0 8px;text-transform:uppercase}
+.panel{background:#0e1018;border:1px solid #1a1d26;border-radius:10px;overflow:hidden;margin-bottom:20px}
+.panel-hd{padding:10px 16px;font-size:10px;color:#4a5068;border-bottom:1px solid #1a1d26;letter-spacing:.08em;display:grid;grid-template-columns:80px 60px 85px 85px 70px 1fr}
+.trade-row{display:grid;grid-template-columns:80px 60px 85px 85px 70px 1fr;padding:8px 16px;font-size:12px;border-bottom:1px solid #12141a}
+.empty{padding:20px 16px;color:#2a2e3a;font-size:12px;text-align:center}
+.pos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.pos-card{background:#0e1018;border:1px solid #1e3a2e;border-left:3px solid #22c55e;border-radius:0 10px 10px 0;padding:14px 16px}
+.badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:500}
+.footer{display:flex;justify-content:space-between;padding:12px 16px;background:#0a0c10;border:1px solid #14161e;border-radius:8px;font-size:11px;color:#2a2e3a;margin-top:20px}
+.btn{background:#12141a;border:1px solid #1e2130;border-radius:6px;padding:4px 12px;color:#4a5068;font-size:11px;cursor:pointer;font-family:inherit}
+.btn:hover{border-color:#2a2e3a}
+.strategy{background:#0e1018;border:1px solid #1a1d26;border-radius:10px;padding:14px 16px;margin-bottom:20px}
+.strat-row{display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #12141a}
+.strat-row:last-child{border-bottom:none}
+</style>
+</head>
+<body>
+<div class="hdr">
+<div><small>SMART TRADING BOT · DATOS EN VIVO</small><h1>v4 · Ultra Selectivo · Take Profit Escalonado</h1></div>
+<div style="text-align:right">
+<div class="status"><div class="dot" id="dot" style="background:#22c55e"></div><span id="status">CONECTANDO...</span></div>
+<div style="font-size:10px;color:#2a2e3a;margin-top:6px" id="updated">—</div>
+</div>
+</div>
+
+<div class="metrics">
+<div class="mc"><div class="mc-l">Capital</div><div class="mc-v" id="capital">—</div><div class="mc-s" id="capital-sub">—</div></div>
+<div class="mc"><div class="mc-l">Ganancia</div><div class="mc-v" id="ganancia">—</div><div class="mc-s" id="ganancia-pct">—</div></div>
+<div class="mc"><div class="mc-l">Win Rate</div><div class="mc-v" id="winrate">—</div><div class="mc-s" id="wl">—</div></div>
+<div class="mc"><div class="mc-l">Posiciones</div><div class="mc-v" id="poscount">—</div><div class="mc-s" id="pares-info">—</div></div>
+<div class="mc"><div class="mc-l">Ciclo</div><div class="mc-v" id="ciclo">—</div><div class="mc-s" id="uptime">—</div></div>
+</div>
+
+<div class="section">Estrategia de salida escalonada</div>
+<div class="strategy">
+<div class="strat-row"><span class="muted">Perdida > $0.80</span><span class="red">STOP LOSS — corta perdida</span></div>
+<div class="strat-row"><span class="muted">Ganancia $0 a $0.50</span><span class="amber">Espera — vende solo si tendencia bajista</span></div>
+<div class="strat-row"><span class="muted">Ganancia $0.50 a $1.00</span><span class="green">Trailing: vende si cae $0.30 desde maximo</span></div>
+<div class="strat-row"><span class="muted">Ganancia $1.00 a $2.00</span><span class="green">Trailing: vende si cae $0.40 desde maximo</span></div>
+<div class="strat-row"><span class="muted">Ganancia > $2.00</span><span class="green">Trailing: vende si cae $0.50 desde maximo</span></div>
+</div>
+
+<div class="section">Posiciones abiertas</div>
+<div id="posiciones" class="pos-grid"><div class="empty" style="grid-column:1/-1;background:#0e1018;border:1px solid #1a1d26;border-radius:10px">Conectando con el bot...</div></div>
+
+<div class="section">Ultimas operaciones</div>
+<div class="panel">
+<div class="panel-hd"><span>HORA</span><span>PAR</span><span>RESULTADO</span><span>GANANCIA</span><span>%</span><span>RAZON</span></div>
+<div id="trades"><div class="empty">Conectando...</div></div>
+</div>
+
+<div class="footer">
+<span>Railway: Singapore · 24/7 · v4 Ultra Selectivo · TP Escalonado</span>
+<button class="btn" onclick="fetchData()">↻ Actualizar</button>
+</div>
+
+<script>
+const API = "https://trading-bot-production-e3d5.up.railway.app";
+const NAMES = {BTCUSDT:"BTC",ETHUSDT:"ETH",BNBUSDT:"BNB",SOLUSDT:"SOL",XRPUSDT:"XRP"};
+
+async function fetchData() {
+  try {
+    const r = await fetch(API);
+    const d = await r.json();
+    update(d);
+  } catch(e) {
+    document.getElementById("status").textContent = "ERROR CONEXION";
+    document.getElementById("dot").style.background = "#ef4444";
+  }
+}
+
+function update(d) {
+  const g = d.ganancia_total || 0;
+  const pos = g >= 0;
+  document.getElementById("dot").style.background = d.estado === "activo" ? "#22c55e" : "#f59e0b";
+  document.getElementById("status").textContent = d.estado === "activo" ? "OPERANDO" : "EN PAUSA";
+  document.getElementById("updated").textContent = "Actualizado " + new Date().toLocaleTimeString("es-AR");
+
+  document.getElementById("capital").textContent = "$" + (d.capital_actual||500).toFixed(2);
+  document.getElementById("capital").className = "mc-v " + (pos ? "green" : "red");
+  document.getElementById("capital-sub").textContent = "Inicial: $" + (d.capital_inicial||500);
+
+  document.getElementById("ganancia").textContent = (g>=0?"+":"") + "$" + Math.abs(g).toFixed(2);
+  document.getElementById("ganancia").className = "mc-v " + (pos ? "green" : "red");
+  document.getElementById("ganancia-pct").textContent = ((d.ganancia_pct||0)>=0?"+":"") + (d.ganancia_pct||0) + "%";
+
+  const wr = d.winrate || 0;
+  const tot = (d.wins||0) + (d.losses||0);
+  document.getElementById("winrate").textContent = wr + "%";
+  document.getElementById("winrate").className = "mc-v " + (wr>=55?"green":wr>=45?"amber":tot===0?"muted":"red");
+  document.getElementById("wl").textContent = (d.wins||0)+"W / "+(d.losses||0)+"L";
+
+  const pe = Object.entries(d.posiciones||{});
+  document.getElementById("poscount").textContent = pe.length;
+  document.getElementById("poscount").className = "mc-v purple";
+  document.getElementById("pares-info").textContent = "de " + (d.pares_activos||[]).length + " pares";
+
+  document.getElementById("ciclo").textContent = "#" + (d.ciclo||0);
+  const uth = d.uptime_horas;
+  document.getElementById("uptime").textContent = (uth !== undefined ? (typeof uth === 'number' ? uth.toFixed(1) : uth) : "0") + "h uptime";
+
+  if (pe.length === 0) {
+    document.getElementById("posiciones").innerHTML = '<div class="empty" style="grid-column:1/-1;background:#0e1018;border:1px solid #1a1d26;border-radius:10px;padding:20px">Sin posiciones abiertas — esperando senales fuertes con tendencia alcista</div>';
+  } else {
+    document.getElementById("posiciones").innerHTML = pe.map(([sym,p]) => {
+      const n = NAMES[sym]||sym;
+      const entrada = p.entrada || p.precio_entrada || "—";
+      return '<div class="pos-card"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:14px;font-weight:500">'+n+'/USDT</span><span class="badge" style="background:#132a1e;color:#22c55e">ABIERTA</span></div><div style="font-size:12px;color:#4a5068">Entrada: $'+entrada+'<br>SL: -$0.80 | TP: escalonado<br>Capital: $'+(p.capital||"166")+'</div></div>';
+    }).join("");
+  }
+
+  const trades = d.ultimos_trades||[];
+  if (trades.length === 0) {
+    document.getElementById("trades").innerHTML = '<div class="empty">Sin operaciones completadas — el bot esta analizando el mercado</div>';
+  } else {
+    document.getElementById("trades").innerHTML = trades.map(function(t) {
+      const w = (t.ganancia_usd||0) > 0;
+      const time = t.timestamp ? new Date(t.timestamp).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}) : "—";
+      const sym = NAMES[t.symbol] || (t.symbol ? t.symbol.replace("USDT","") : "—");
+      const gusd = (t.ganancia_usd||0);
+      const gpct = (t.ganancia_pct||0);
+      return '<div class="trade-row"><span class="muted">'+time+'</span><span style="font-weight:500">'+sym+'</span><span class="badge" style="background:'+(w?"#0d2a18":"#1a0f0f")+';color:'+(w?"#22c55e":"#ef4444")+';width:fit-content">'+(w?"GANO":"PERDIO")+'</span><span style="color:'+(w?"#22c55e":"#ef4444")+';font-weight:500">'+(gusd>=0?"+":"")+("$"+Math.abs(gusd).toFixed(2))+'</span><span style="color:'+(w?"#22c55e":"#ef4444")+'">'+(gpct>=0?"+":"")+gpct.toFixed(2)+'%</span><span class="muted" style="font-size:11px">'+(t.razon||"—")+'</span></div>';
+    }).join("");
+  }
+}
+
+fetchData();
+setInterval(fetchData, 30000);
+</script>
+</body>
+</html>

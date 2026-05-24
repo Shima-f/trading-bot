@@ -1,0 +1,16 @@
+{
+  "bot": "SHORT",
+  "leverage": 1,
+  "margin_type": "ISOLATED",
+  "timestamp": "2026-05-23T23:30:19.611237",
+  "capital_actual": 500,
+  "ganancia_total": 0,
+  "ganancia_pct": 0.0,
+  "estado": "pausado",
+  "ciclo": 9,
+  "wins": 0,
+  "losses": 0,
+  "winrate": 0,
+  "posiciones": {},
+  "ultimos_trades": []
+}
