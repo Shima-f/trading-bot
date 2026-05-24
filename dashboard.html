@@ -2,152 +2,172 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Trading Bot - Live</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Trading Bots · Long & Short</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Major+Mono+Display&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap');
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#08090c;color:#e0e4ec;font-family:'JetBrains Mono',monospace;padding:20px 24px;min-height:100vh}
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #1a1d26}
-.hdr h1{font-size:20px;font-weight:300;letter-spacing:-0.5px}
-.hdr small{font-size:11px;color:#4a5068}
-.status{display:flex;align-items:center;gap:8px;background:#12141a;border:1px solid #1e2130;border-radius:100px;padding:6px 14px;font-size:12px}
-.dot{width:7px;height:7px;border-radius:50%;animation:pulse 2s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
-.mc{background:#0e1018;border:1px solid #1a1d26;border-radius:10px;padding:14px 16px}
-.mc-l{font-size:10px;letter-spacing:.12em;color:#4a5068;margin-bottom:8px;text-transform:uppercase}
-.mc-v{font-size:22px;font-weight:300;letter-spacing:-1px}
-.mc-s{font-size:11px;color:#4a5068;margin-top:4px}
-.green{color:#22c55e}.red{color:#ef4444}.amber{color:#f59e0b}.muted{color:#4a5068}.purple{color:#818cf8}
-.section{font-size:10px;letter-spacing:.12em;color:#4a5068;margin:16px 0 8px;text-transform:uppercase}
-.panel{background:#0e1018;border:1px solid #1a1d26;border-radius:10px;overflow:hidden;margin-bottom:20px}
-.panel-hd{padding:10px 16px;font-size:10px;color:#4a5068;border-bottom:1px solid #1a1d26;letter-spacing:.08em;display:grid;grid-template-columns:80px 60px 85px 85px 70px 1fr}
-.trade-row{display:grid;grid-template-columns:80px 60px 85px 85px 70px 1fr;padding:8px 16px;font-size:12px;border-bottom:1px solid #12141a}
-.empty{padding:20px 16px;color:#2a2e3a;font-size:12px;text-align:center}
-.pos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
-.pos-card{background:#0e1018;border:1px solid #1e3a2e;border-left:3px solid #22c55e;border-radius:0 10px 10px 0;padding:14px 16px}
-.badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:500}
-.footer{display:flex;justify-content:space-between;padding:12px 16px;background:#0a0c10;border:1px solid #14161e;border-radius:8px;font-size:11px;color:#2a2e3a;margin-top:20px}
-.btn{background:#12141a;border:1px solid #1e2130;border-radius:6px;padding:4px 12px;color:#4a5068;font-size:11px;cursor:pointer;font-family:inherit}
-.btn:hover{border-color:#2a2e3a}
-.strategy{background:#0e1018;border:1px solid #1a1d26;border-radius:10px;padding:14px 16px;margin-bottom:20px}
-.strat-row{display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #12141a}
-.strat-row:last-child{border-bottom:none}
+:root{--bg:#0a0e0d;--bg-card:#11151a;--bg-card-2:#161b21;--border:#1f2630;--text:#d4e2dc;--text-dim:#6e7d7a;--text-faint:#3d4845;--long:#00d97e;--long-glow:rgba(0,217,126,0.12);--short:#ff4d6d;--short-glow:rgba(255,77,109,0.12);--amber:#ffb547;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.5;min-height:100vh;background-image:linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px);background-size:32px 32px;padding:24px;}
+.header{display:flex;justify-content:space-between;align-items:flex-end;padding:20px 28px;border:1px solid var(--border);background:var(--bg-card);margin-bottom:20px;position:relative;overflow:hidden;}
+.header::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--long),var(--short),transparent);}
+.header h1{font-family:'Major Mono Display',monospace;font-size:22px;letter-spacing:0.15em;}
+.header h1 .al{color:var(--long);} .header h1 .as{color:var(--short);}
+.header .meta{text-align:right;color:var(--text-dim);font-size:11px;letter-spacing:0.1em;}
+.header .meta .clock{color:var(--text);font-size:14px;font-weight:500;}
+.pulse{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--long);margin-right:6px;animation:pulse 1.8s ease-in-out infinite;vertical-align:middle;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.agg-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:20px;}
+.agg-cell{background:var(--bg-card);padding:18px 22px;}
+.agg-cell .label{color:var(--text-faint);font-size:10px;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:6px;}
+.agg-cell .value{font-size:22px;font-weight:500;}
+.agg-cell .sub{color:var(--text-dim);font-size:11px;margin-top:3px;}
+.pos{color:var(--long);} .neg{color:var(--short);}
+.columns{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media(max-width:1100px){.columns{grid-template-columns:1fr;}}
+.bot-col{border:1px solid var(--border);background:var(--bg-card);}
+.bot-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.bot-header.long{background:linear-gradient(90deg,var(--long-glow),transparent 70%);}
+.bot-header.short{background:linear-gradient(90deg,var(--short-glow),transparent 70%);}
+.bot-header .title{font-family:'Major Mono Display',monospace;font-size:16px;letter-spacing:0.15em;}
+.bot-header.long .title{color:var(--long);} .bot-header.short .title{color:var(--short);}
+.bot-header .status{font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--text-dim);}
+.bot-header .status .dot{display:inline-block;width:6px;height:6px;background:var(--text-faint);margin-right:5px;vertical-align:middle;}
+.bot-header.long .status.active .dot{background:var(--long);box-shadow:0 0 8px var(--long);}
+.bot-header.short .status.active .dot{background:var(--short);box-shadow:0 0 8px var(--short);}
+.bot-header .status.offline{color:var(--amber);}
+.bot-header .status.offline .dot{background:var(--amber);}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);}
+.stat{background:var(--bg-card);padding:14px 16px;}
+.stat .label{color:var(--text-faint);font-size:9px;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:4px;}
+.stat .value{font-size:17px;font-weight:500;}
+.stat .sub{font-size:10px;color:var(--text-dim);margin-top:2px;}
+.section{padding:16px 20px;border-top:1px solid var(--border);}
+.section-title{color:var(--text-faint);font-size:10px;letter-spacing:0.25em;text-transform:uppercase;margin-bottom:12px;display:flex;justify-content:space-between;}
+.position{display:grid;grid-template-columns:90px 1fr 1fr;gap:12px;padding:10px 12px;background:var(--bg-card-2);margin-bottom:6px;border-left:2px solid var(--text-faint);font-size:12px;}
+.position.long-pos{border-left-color:var(--long);} .position.short-pos{border-left-color:var(--short);}
+.position .sym{font-weight:700;}
+.position .field{color:var(--text-dim);font-size:10px;}
+.position .field .v{color:var(--text);font-size:12px;display:block;margin-top:1px;}
+.position .field .v.pos{color:var(--long);} .position .field .v.neg{color:var(--short);}
+.trades{font-size:11px;border-collapse:collapse;width:100%;}
+.trades thead{color:var(--text-faint);font-size:9px;letter-spacing:0.2em;text-transform:uppercase;}
+.trades th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);font-weight:400;}
+.trades th.num{text-align:right;}
+.trades td{padding:7px 6px;border-bottom:1px solid var(--border);}
+.trades td.num{text-align:right;font-variant-numeric:tabular-nums;}
+.trades tbody tr:hover{background:var(--bg-card-2);}
+.trades .tag{display:inline-block;font-size:8px;padding:2px 5px;letter-spacing:0.1em;background:var(--border);color:var(--text-dim);}
+.trades .tag.tp{background:rgba(0,217,126,0.15);color:var(--long);}
+.trades .tag.sl{background:rgba(255,77,109,0.15);color:var(--short);}
+.trades .tag.tr{background:rgba(255,181,71,0.12);color:var(--amber);}
+.empty{color:var(--text-faint);font-size:11px;padding:18px 4px;text-align:center;}
+.footer{margin-top:20px;padding:14px 20px;color:var(--text-faint);font-size:10px;letter-spacing:0.15em;text-align:center;border:1px solid var(--border);background:var(--bg-card);}
+.footer .sep{margin:0 12px;opacity:0.5;}
 </style>
 </head>
 <body>
-<div class="hdr">
-<div><small>SMART TRADING BOT · DATOS EN VIVO</small><h1>v4 · Ultra Selectivo · Take Profit Escalonado</h1></div>
-<div style="text-align:right">
-<div class="status"><div class="dot" id="dot" style="background:#22c55e"></div><span id="status">CONECTANDO...</span></div>
-<div style="font-size:10px;color:#2a2e3a;margin-top:6px" id="updated">—</div>
+<header class="header">
+  <h1><span class="al">LONG</span> · BOTS · <span class="as">SHORT</span></h1>
+  <div class="meta"><div><span class="pulse"></span>LIVE FEED</div><div class="clock" id="clock">--:--:--</div></div>
+</header>
+<div class="agg-strip">
+  <div class="agg-cell"><div class="label">Capital Total</div><div class="value" id="agg-capital">$0.00</div><div class="sub" id="agg-capital-sub">long + short</div></div>
+  <div class="agg-cell"><div class="label">P&amp;L Combinado</div><div class="value" id="agg-pnl">$0.00</div><div class="sub" id="agg-pnl-pct">0.00%</div></div>
+  <div class="agg-cell"><div class="label">Trades Totales</div><div class="value" id="agg-trades">0</div><div class="sub" id="agg-wr">WR 0%</div></div>
+  <div class="agg-cell"><div class="label">Posiciones Abiertas</div><div class="value" id="agg-open">0</div><div class="sub" id="agg-open-sub">0L · 0S</div></div>
 </div>
+<div class="columns">
+  <section class="bot-col">
+    <div class="bot-header long"><div class="title">LONG · v4</div><div class="status" id="long-status"><span class="dot"></span>OFFLINE</div></div>
+    <div class="stats">
+      <div class="stat"><div class="label">Capital</div><div class="value" id="long-capital">$--</div><div class="sub" id="long-cycle">Ciclo --</div></div>
+      <div class="stat"><div class="label">P&amp;L</div><div class="value" id="long-pnl">$--</div><div class="sub" id="long-pnl-pct">--%</div></div>
+      <div class="stat"><div class="label">Winrate</div><div class="value" id="long-wr">--%</div><div class="sub" id="long-wl">-W / -L</div></div>
+    </div>
+    <div class="section"><div class="section-title"><span>Posiciones Abiertas</span><span id="long-pos-count">0</span></div><div id="long-positions"></div></div>
+    <div class="section"><div class="section-title"><span>Últimos Trades</span><span id="long-trade-count">0</span></div><div id="long-trades-container"></div></div>
+  </section>
+  <section class="bot-col">
+    <div class="bot-header short"><div class="title">SHORT · v4</div><div class="status" id="short-status"><span class="dot"></span>OFFLINE</div></div>
+    <div class="stats">
+      <div class="stat"><div class="label">Capital</div><div class="value" id="short-capital">$--</div><div class="sub" id="short-cycle">Ciclo --</div></div>
+      <div class="stat"><div class="label">P&amp;L</div><div class="value" id="short-pnl">$--</div><div class="sub" id="short-pnl-pct">--%</div></div>
+      <div class="stat"><div class="label">Winrate</div><div class="value" id="short-wr">--%</div><div class="sub" id="short-wl">-W / -L</div></div>
+    </div>
+    <div class="section"><div class="section-title"><span>Posiciones Abiertas</span><span id="short-pos-count">0</span></div><div id="short-positions"></div></div>
+    <div class="section"><div class="section-title"><span>Últimos Trades</span><span id="short-trade-count">0</span></div><div id="short-trades-container"></div></div>
+  </section>
 </div>
-
-<div class="metrics">
-<div class="mc"><div class="mc-l">Capital</div><div class="mc-v" id="capital">—</div><div class="mc-s" id="capital-sub">—</div></div>
-<div class="mc"><div class="mc-l">Ganancia</div><div class="mc-v" id="ganancia">—</div><div class="mc-s" id="ganancia-pct">—</div></div>
-<div class="mc"><div class="mc-l">Win Rate</div><div class="mc-v" id="winrate">—</div><div class="mc-s" id="wl">—</div></div>
-<div class="mc"><div class="mc-l">Posiciones</div><div class="mc-v" id="poscount">—</div><div class="mc-s" id="pares-info">—</div></div>
-<div class="mc"><div class="mc-l">Ciclo</div><div class="mc-v" id="ciclo">—</div><div class="mc-s" id="uptime">—</div></div>
-</div>
-
-<div class="section">Estrategia de salida escalonada</div>
-<div class="strategy">
-<div class="strat-row"><span class="muted">Perdida > $0.80</span><span class="red">STOP LOSS — corta perdida</span></div>
-<div class="strat-row"><span class="muted">Ganancia $0 a $0.50</span><span class="amber">Espera — vende solo si tendencia bajista</span></div>
-<div class="strat-row"><span class="muted">Ganancia $0.50 a $1.00</span><span class="green">Trailing: vende si cae $0.30 desde maximo</span></div>
-<div class="strat-row"><span class="muted">Ganancia $1.00 a $2.00</span><span class="green">Trailing: vende si cae $0.40 desde maximo</span></div>
-<div class="strat-row"><span class="muted">Ganancia > $2.00</span><span class="green">Trailing: vende si cae $0.50 desde maximo</span></div>
-</div>
-
-<div class="section">Posiciones abiertas</div>
-<div id="posiciones" class="pos-grid"><div class="empty" style="grid-column:1/-1;background:#0e1018;border:1px solid #1a1d26;border-radius:10px">Conectando con el bot...</div></div>
-
-<div class="section">Ultimas operaciones</div>
-<div class="panel">
-<div class="panel-hd"><span>HORA</span><span>PAR</span><span>RESULTADO</span><span>GANANCIA</span><span>%</span><span>RAZON</span></div>
-<div id="trades"><div class="empty">Conectando...</div></div>
-</div>
-
-<div class="footer">
-<span>Railway: Singapore · 24/7 · v4 Ultra Selectivo · TP Escalonado</span>
-<button class="btn" onclick="fetchData()">↻ Actualizar</button>
-</div>
-
+<footer class="footer">AUTO-REFRESH 10s <span class="sep">·</span> Railway 24/7 <span class="sep">·</span> <span id="last-update">--</span></footer>
 <script>
-const API = "https://trading-bot-production-e3d5.up.railway.app";
-const NAMES = {BTCUSDT:"BTC",ETHUSDT:"ETH",BNBUSDT:"BNB",SOLUSDT:"SOL",XRPUSDT:"XRP"};
-
-async function fetchData() {
-  try {
-    const r = await fetch(API);
-    const d = await r.json();
-    update(d);
-  } catch(e) {
-    document.getElementById("status").textContent = "ERROR CONEXION";
-    document.getElementById("dot").style.background = "#ef4444";
+const LONG_URL  = `/long`;
+const SHORT_URL = `/short`;
+const fmtUSD=n=>'$'+(n??0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct=n=>((n??0)>=0?'+':'')+(n??0).toFixed(2)+'%';
+const fmtNum=n=>(n??0).toFixed(2);
+const cls=n=>(n??0)>0?'pos':(n??0)<0?'neg':'';
+const tagFor=r=>{if(!r)return'';if(r.includes('TAKE'))return'tp';if(r.includes('STOP LOSS'))return'sl';if(r.includes('TRAILING'))return'tr';return'';};
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8);},1000);
+async function fetchBot(url){try{const r=await fetch(url,{cache:'no-cache'});if(!r.ok)return null;return await r.json();}catch(e){return null;}}
+function renderBot(prefix,data,isShort){
+  const statusEl=document.getElementById(prefix+'-status');
+  if(!data||Object.keys(data).length===0){
+    statusEl.className='status offline';statusEl.innerHTML='<span class="dot"></span>OFFLINE';
+    ['capital','pnl','pnl-pct','wr','wl','cycle'].forEach(id=>document.getElementById(prefix+'-'+id).textContent='$--'.includes(id)?'$--':'--%');
+    document.getElementById(prefix+'-capital').textContent='$--';
+    document.getElementById(prefix+'-pnl').textContent='$--';
+    document.getElementById(prefix+'-pnl-pct').textContent='--%';
+    document.getElementById(prefix+'-wr').textContent='--%';
+    document.getElementById(prefix+'-wl').textContent='-W / -L';
+    document.getElementById(prefix+'-cycle').textContent='Ciclo --';
+    document.getElementById(prefix+'-positions').innerHTML='<div class="empty">Bot sin conexión</div>';
+    document.getElementById(prefix+'-trades-container').innerHTML='<div class="empty">—</div>';
+    document.getElementById(prefix+'-pos-count').textContent='0';
+    document.getElementById(prefix+'-trade-count').textContent='0';
+    return{capital:0,pnl:0,trades:0,wins:0,losses:0,open:0};
   }
+  const estado=(data.estado||'').toLowerCase();
+  statusEl.className='status '+(estado==='activo'?'active':'offline');
+  statusEl.innerHTML='<span class="dot"></span>'+(data.estado||'desconocido').toUpperCase();
+  document.getElementById(prefix+'-capital').textContent=fmtUSD(data.capital_actual);
+  document.getElementById(prefix+'-cycle').textContent='Ciclo '+(data.ciclo??'--');
+  const pnlEl=document.getElementById(prefix+'-pnl');
+  pnlEl.textContent=fmtUSD(data.ganancia_total);pnlEl.className='value '+cls(data.ganancia_total);
+  const pctEl=document.getElementById(prefix+'-pnl-pct');
+  pctEl.textContent=fmtPct(data.ganancia_pct);pctEl.className='sub '+cls(data.ganancia_pct);
+  document.getElementById(prefix+'-wr').textContent=(data.winrate??0).toFixed(1)+'%';
+  document.getElementById(prefix+'-wl').textContent=(data.wins??0)+'W / '+(data.losses??0)+'L';
+  const posiciones=data.posiciones||{};const symbols=Object.keys(posiciones);
+  document.getElementById(prefix+'-pos-count').textContent=symbols.length;
+  const posContainer=document.getElementById(prefix+'-positions');
+  posContainer.innerHTML=symbols.length===0?'<div class="empty">Sin posiciones abiertas</div>':symbols.map(sym=>{const p=posiciones[sym];const lev=p.leverage?' '+p.leverage+'x':'';return'<div class="position '+(isShort?'short-pos':'long-pos')+'"><div class="sym">'+sym+lev+'</div><div class="field">Entrada<span class="v">$'+fmtNum(p.entrada)+'</span></div><div class="field">SL/TP<span class="v">'+fmtNum(p.sl)+'% / '+fmtNum(p.tp)+'%</span></div></div>';}).join('');
+  const trades=(data.ultimos_trades||[]).slice().reverse();
+  document.getElementById(prefix+'-trade-count').textContent=trades.length;
+  const tc=document.getElementById(prefix+'-trades-container');
+  tc.innerHTML=trades.length===0?'<div class="empty">Aún no hay trades cerrados</div>':'<table class="trades"><thead><tr><th>Símbolo</th><th class="num">%</th><th class="num">USD</th><th>Salida</th></tr></thead><tbody>'+trades.map(t=>'<tr><td>'+t.symbol+'</td><td class="num '+cls(t.ganancia_pct)+'">'+fmtPct(t.ganancia_pct)+'</td><td class="num '+cls(t.ganancia_usd)+'">'+fmtUSD(t.ganancia_usd)+'</td><td><span class="tag '+tagFor(t.razon)+'">'+(t.razon||'').replace('TAKE PROFIT','TP').replace('STOP LOSS','SL').replace('TRAILING STOP','TR')+'</span></td></tr>').join('')+'</tbody></table>';
+  return{capital:data.capital_actual??0,pnl:data.ganancia_total??0,trades:(data.wins??0)+(data.losses??0),wins:data.wins??0,losses:data.losses??0,open:symbols.length};
 }
-
-function update(d) {
-  const g = d.ganancia_total || 0;
-  const pos = g >= 0;
-  document.getElementById("dot").style.background = d.estado === "activo" ? "#22c55e" : "#f59e0b";
-  document.getElementById("status").textContent = d.estado === "activo" ? "OPERANDO" : "EN PAUSA";
-  document.getElementById("updated").textContent = "Actualizado " + new Date().toLocaleTimeString("es-AR");
-
-  document.getElementById("capital").textContent = "$" + (d.capital_actual||500).toFixed(2);
-  document.getElementById("capital").className = "mc-v " + (pos ? "green" : "red");
-  document.getElementById("capital-sub").textContent = "Inicial: $" + (d.capital_inicial||500);
-
-  document.getElementById("ganancia").textContent = (g>=0?"+":"") + "$" + Math.abs(g).toFixed(2);
-  document.getElementById("ganancia").className = "mc-v " + (pos ? "green" : "red");
-  document.getElementById("ganancia-pct").textContent = ((d.ganancia_pct||0)>=0?"+":"") + (d.ganancia_pct||0) + "%";
-
-  const wr = d.winrate || 0;
-  const tot = (d.wins||0) + (d.losses||0);
-  document.getElementById("winrate").textContent = wr + "%";
-  document.getElementById("winrate").className = "mc-v " + (wr>=55?"green":wr>=45?"amber":tot===0?"muted":"red");
-  document.getElementById("wl").textContent = (d.wins||0)+"W / "+(d.losses||0)+"L";
-
-  const pe = Object.entries(d.posiciones||{});
-  document.getElementById("poscount").textContent = pe.length;
-  document.getElementById("poscount").className = "mc-v purple";
-  document.getElementById("pares-info").textContent = "de " + (d.pares_activos||[]).length + " pares";
-
-  document.getElementById("ciclo").textContent = "#" + (d.ciclo||0);
-  const uth = d.uptime_horas;
-  document.getElementById("uptime").textContent = (uth !== undefined ? (typeof uth === 'number' ? uth.toFixed(1) : uth) : "0") + "h uptime";
-
-  if (pe.length === 0) {
-    document.getElementById("posiciones").innerHTML = '<div class="empty" style="grid-column:1/-1;background:#0e1018;border:1px solid #1a1d26;border-radius:10px;padding:20px">Sin posiciones abiertas — esperando senales fuertes con tendencia alcista</div>';
-  } else {
-    document.getElementById("posiciones").innerHTML = pe.map(([sym,p]) => {
-      const n = NAMES[sym]||sym;
-      const entrada = p.entrada || p.precio_entrada || "—";
-      return '<div class="pos-card"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:14px;font-weight:500">'+n+'/USDT</span><span class="badge" style="background:#132a1e;color:#22c55e">ABIERTA</span></div><div style="font-size:12px;color:#4a5068">Entrada: $'+entrada+'<br>SL: -$0.80 | TP: escalonado<br>Capital: $'+(p.capital||"166")+'</div></div>';
-    }).join("");
-  }
-
-  const trades = d.ultimos_trades||[];
-  if (trades.length === 0) {
-    document.getElementById("trades").innerHTML = '<div class="empty">Sin operaciones completadas — el bot esta analizando el mercado</div>';
-  } else {
-    document.getElementById("trades").innerHTML = trades.map(function(t) {
-      const w = (t.ganancia_usd||0) > 0;
-      const time = t.timestamp ? new Date(t.timestamp).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}) : "—";
-      const sym = NAMES[t.symbol] || (t.symbol ? t.symbol.replace("USDT","") : "—");
-      const gusd = (t.ganancia_usd||0);
-      const gpct = (t.ganancia_pct||0);
-      return '<div class="trade-row"><span class="muted">'+time+'</span><span style="font-weight:500">'+sym+'</span><span class="badge" style="background:'+(w?"#0d2a18":"#1a0f0f")+';color:'+(w?"#22c55e":"#ef4444")+';width:fit-content">'+(w?"GANO":"PERDIO")+'</span><span style="color:'+(w?"#22c55e":"#ef4444")+';font-weight:500">'+(gusd>=0?"+":"")+("$"+Math.abs(gusd).toFixed(2))+'</span><span style="color:'+(w?"#22c55e":"#ef4444")+'">'+(gpct>=0?"+":"")+gpct.toFixed(2)+'%</span><span class="muted" style="font-size:11px">'+(t.razon||"—")+'</span></div>';
-    }).join("");
-  }
+function renderAggregate(l,s){
+  const totalCap=l.capital+s.capital,totalPnl=l.pnl+s.pnl,totalTrades=l.trades+s.trades,totalWins=l.wins+s.wins,totalOpen=l.open+s.open;
+  const capInicial=totalCap-totalPnl,totalPct=capInicial>0?(totalPnl/capInicial)*100:0,wr=totalTrades>0?(totalWins/totalTrades)*100:0;
+  document.getElementById('agg-capital').textContent=fmtUSD(totalCap);
+  document.getElementById('agg-capital-sub').textContent=fmtUSD(l.capital)+' L · '+fmtUSD(s.capital)+' S';
+  const pnlEl=document.getElementById('agg-pnl');pnlEl.textContent=fmtUSD(totalPnl);pnlEl.className='value '+cls(totalPnl);
+  const pctEl=document.getElementById('agg-pnl-pct');pctEl.textContent=fmtPct(totalPct);pctEl.className='sub '+cls(totalPct);
+  document.getElementById('agg-trades').textContent=totalTrades;
+  document.getElementById('agg-wr').textContent='WR '+wr.toFixed(0)+'%';
+  document.getElementById('agg-open').textContent=totalOpen;
+  document.getElementById('agg-open-sub').textContent=l.open+'L · '+s.open+'S';
 }
-
-fetchData();
-setInterval(fetchData, 30000);
+async function update(){
+  const[longData,shortData]=await Promise.all([fetchBot(LONG_URL),fetchBot(SHORT_URL)]);
+  const l=renderBot('long',longData,false),s=renderBot('short',shortData,true);
+  renderAggregate(l,s);
+  document.getElementById('last-update').textContent='UPDATED '+new Date().toTimeString().slice(0,8);
+}
+update();setInterval(update,10000);
 </script>
 </body>
 </html>
