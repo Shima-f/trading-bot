@@ -150,10 +150,10 @@ function renderBot(prefix,data,isShort){
   return{capital:data.capital_actual??0,pnl:data.ganancia_total??0,trades:(data.wins??0)+(data.losses??0),wins:data.wins??0,losses:data.losses??0,open:symbols.length};
 }
 function renderAggregate(l,s){
-  const totalCap=l.capital+s.capital,totalPnl=l.pnl+s.pnl,totalTrades=l.trades+s.trades,totalWins=l.wins+s.wins,totalOpen=l.open+s.open;
+  const totalCap=Math.max(l.capital,s.capital),totalPnl=l.pnl+s.pnl,totalTrades=l.trades+s.trades,totalWins=l.wins+s.wins,totalOpen=l.open+s.open;
   const capInicial=totalCap-totalPnl,totalPct=capInicial>0?(totalPnl/capInicial)*100:0,wr=totalTrades>0?(totalWins/totalTrades)*100:0;
   document.getElementById('agg-capital').textContent=fmtUSD(totalCap);
-  document.getElementById('agg-capital-sub').textContent=fmtUSD(l.capital)+' L · '+fmtUSD(s.capital)+' S';
+  document.getElementById('agg-capital-sub').textContent='Capital compartido · $500 base';
   const pnlEl=document.getElementById('agg-pnl');pnlEl.textContent=fmtUSD(totalPnl);pnlEl.className='value '+cls(totalPnl);
   const pctEl=document.getElementById('agg-pnl-pct');pctEl.textContent=fmtPct(totalPct);pctEl.className='sub '+cls(totalPct);
   document.getElementById('agg-trades').textContent=totalTrades;
