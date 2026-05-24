@@ -2,7 +2,7 @@ import os, sys, json, subprocess, threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
-PORT = int(os.environ.get("PORT", 3001))
+PORT = int(os.environ.get("PORT", 8080))
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
