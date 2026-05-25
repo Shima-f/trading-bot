@@ -67,6 +67,14 @@ def api_get(url):
     return json.loads(req.read())
 
 
+
+PERFIL_PARES = {
+    "BTCUSDT": {"beta": 1.0, "sl_mult": 2.0, "min_confianza": 60},
+    "ETHUSDT": {"beta": 1.15, "sl_mult": 2.2, "min_confianza": 60},
+    "BNBUSDT": {"beta": 0.9, "sl_mult": 2.0, "min_confianza": 60},
+    "SOLUSDT": {"beta": 1.5, "sl_mult": 2.5, "min_confianza": 65},
+    "XRPUSDT": {"beta": 1.3, "sl_mult": 2.3, "min_confianza": 62},
+}
 class SmartTradingBotShort:
 
     def __init__(self):
@@ -74,6 +82,8 @@ class SmartTradingBotShort:
         self.capital_actual = CAPITAL_INICIAL
         self.capital_inicial = CAPITAL_INICIAL
         self.pares_activos = []
+
+
         self.posiciones = {}          # symbol -> {qty, precio_entrada, ...}
         self.historial = []
         self.ganancia_total = 0
@@ -247,54 +257,56 @@ class SmartTradingBotShort:
 
         tendencia_h, rsi_1h = self.tendencia_1h(par["symbol"])
 
+        perfil = PERFIL_PARES.get(par["symbol"], {"beta": 1.0, "sl_mult": 2.0, "min_confianza": 60})
+
         vol_spike = False
         if len(volumenes) >= 20:
             avg_vol = sum(volumenes[-20:-1]) / 19
-            vol_spike = volumenes[-1] >= avg_vol * 1.5
+            vol_spike = volumenes[-1] >= avg_vol * 1.3
 
-        # ============================================
-        # SCORING INVERTIDO - puntua tendencia BAJISTA
-        # ============================================
+        # --- SCORING v5 INVERTIDO ---
         puntos = 0
 
-        # Tendencia 1H: ahora premiamos BAJISTA
         if tendencia_h == "bajista":
-            puntos += 30
-        elif tendencia_h == "lateral":
-            puntos += 5
-        elif tendencia_h == "alcista":
-            puntos -= 30
-
-        # EMAs apiladas hacia ABAJO (precio < ema9 < ema21 < ema50)
-        if precio < ema9 < ema21 < ema50:
             puntos += 25
+        elif tendencia_h == "lateral":
+            puntos += 10
+        elif tendencia_h == "alcista":
+            puntos -= 25
+
+        if precio < ema9 < ema21 < ema50:
+            puntos += 20
         elif precio < ema9 < ema21:
             puntos += 12
+        elif precio < ema9:
+            puntos += 5
 
-        # RSI: zona neutral-baja es ideal para shortear sin sobreventa
-        # Evitar RSI < 30 (sobrevendido, riesgo de rebote)
-        if 40 <= rsi_5m <= 60:
+        if 45 <= rsi_5m <= 65:
             puntos += 15
-        elif 60 < rsi_5m <= 65:
-            puntos += 10  # bien para fade de rally en downtrend
+        elif 60 < rsi_5m <= 72:
+            puntos += 10
+        elif rsi_5m < 30:
+            puntos -= 15
 
-        # Penalizar sobreventa extrema (rebote tecnico probable)
-        if rsi_5m < 30:
-            puntos -= 20
-
-        # Volume spike vale igual en ambas direcciones
         if vol_spike:
-            puntos += 15
+            puntos += 10
 
-        # 5 velas ROJAS consecutivas (precio cayendo de forma sostenida)
-        ultimos_5 = cierres[-5:]
-        if all(ultimos_5[i] >= ultimos_5[i+1] for i in range(len(ultimos_5)-1)):
-            puntos += 15
+        ultimos_3 = cierres[-3:]
+        if all(ultimos_3[i] >= ultimos_3[i+1] for i in range(len(ultimos_3)-1)):
+            puntos += 10
+
+        if len(klines_5m) >= 3:
+            prev = klines_5m[-2]
+            curr = klines_5m[-1]
+            if prev["close"] > prev["open"] and curr["close"] < curr["open"]:
+                if curr["close"] < prev["open"]:
+                    puntos += 10
 
         confianza = max(0, min(100, puntos))
 
-        stop_loss_dinamico = max(0.15, min(0.5, atr_pct * 1.2))
-        take_profit_dinamico = max(0.15, stop_loss_dinamico * 1.5)
+        sl_mult = perfil["sl_mult"]
+        stop_loss_dinamico = max(0.4, min(1.2, atr_pct * sl_mult))
+        take_profit_dinamico = max(0.6, stop_loss_dinamico * 1.5)
 
         indicadores = {
             "rsi_5m": round(rsi_5m, 1),
@@ -308,81 +320,75 @@ class SmartTradingBotShort:
             "tp": round(take_profit_dinamico, 2)
         }
 
-        # ============================================
-        # GESTION DE POSICION ABIERTA (SHORT)
-        # En short ganamos cuando el precio BAJA
-        # ============================================
+        # --- GESTION POSICION SHORT ABIERTA v5 ---
         if par["symbol"] in self.posiciones:
             pos = self.posiciones[par["symbol"]]
-            # gp invertido: entrada - precio_actual
-            gp = ((pos["precio_entrada"] - precio) / pos["precio_entrada"]) * 100
 
-            # Trailing INVERTIDO: trackea el MINIMO precio alcanzado
             if par["symbol"] not in self.min_precios:
                 self.min_precios[par["symbol"]] = precio
             if precio < self.min_precios[par["symbol"]]:
                 self.min_precios[par["symbol"]] = precio
 
-            min_p = self.min_precios[par["symbol"]]
-
-            # Ganancia en USD (apalancada): (entrada - actual) * qty
             ganancia_usd = (pos["precio_entrada"] - precio) * pos["qty"]
-            # Subida desde minimo = retroceso contra nosotros
+            min_p = self.min_precios[par["symbol"]]
             subida_usd = (precio - min_p) * pos["qty"]
 
-            # STOP LOSS DURO: perdida > $0.80
-            if ganancia_usd <= -0.80:
+            # STOP LOSS DURO
+            sl_pct = pos.get("stop_loss", 0.5)
+            sl_precio = pos["precio_entrada"] * (1 + sl_pct / 100)
+            if precio >= sl_precio:
                 return "CERRAR", confianza, indicadores
 
-            # Ganancia chica: solo cerrar si BTC se da vuelta a alcista
-            if ganancia_usd < 0.50:
-                if tendencia_h == "alcista" and ganancia_usd > 0.10:
+            # TAKE PROFIT duro
+            tp_pct = pos.get("take_profit", 1.0)
+            tp_precio = pos["precio_entrada"] * (1 - tp_pct / 100)
+            if precio <= tp_precio:
+                return "CERRAR", confianza, indicadores
+
+            if ganancia_usd < 0.30:
+                if tendencia_h == "alcista" and rsi_5m < 35:
                     return "CERRAR", confianza, indicadores
                 return "ESPERAR", confianza, indicadores
 
-            # Trailing zona 1: ganancia 0.50-1.00
-            if 0.50 <= ganancia_usd < 1.00:
-                if subida_usd > 0.30 or tendencia_h == "alcista":
-                    return "CERRAR", confianza, indicadores
-                return "ESPERAR", confianza, indicadores
+            ganancia_max_usd = (pos["precio_entrada"] - min_p) * pos["qty"]
 
-            # Trailing zona 2: ganancia 1.00-2.00
-            if 1.00 <= ganancia_usd < 2.00:
-                if subida_usd > 0.40 or tendencia_h == "alcista":
-                    return "CERRAR", confianza, indicadores
-                return "ESPERAR", confianza, indicadores
-
-            # Trailing zona 3: ganancia >= 2.00
-            if ganancia_usd >= 2.00:
-                if subida_usd > 0.50:
+            if 0.30 <= ganancia_usd < 1.00:
+                if ganancia_max_usd > 0.30 and subida_usd > ganancia_max_usd * 0.50:
                     return "CERRAR", confianza, indicadores
                 if tendencia_h == "alcista":
                     return "CERRAR", confianza, indicadores
                 return "ESPERAR", confianza, indicadores
 
-        # ============================================
-        # FILTRO BTC INVERTIDO: no shortear alts si BTC no es bajista
-        # ============================================
-        if par["symbol"] != "BTCUSDT":
-            btc_tend, _ = self.tendencia_1h("BTCUSDT")
-            if btc_tend != "bajista":
+            if 1.00 <= ganancia_usd < 3.00:
+                if subida_usd > ganancia_max_usd * 0.40:
+                    return "CERRAR", confianza, indicadores
+                if tendencia_h == "alcista" and rsi_5m < 40:
+                    return "CERRAR", confianza, indicadores
                 return "ESPERAR", confianza, indicadores
 
-        # No abrir short en lateral salvo confianza muy alta
-        if tendencia_h == "lateral" and confianza < 80:
+            if ganancia_usd >= 3.00:
+                if subida_usd > ganancia_max_usd * 0.35:
+                    return "CERRAR", confianza, indicadores
+                return "ESPERAR", confianza, indicadores
+
+        # --- FILTRO BTC v5 INVERTIDO ---
+        if par["symbol"] != "BTCUSDT":
+            btc_tend, _ = self.tendencia_1h("BTCUSDT")
+            if btc_tend == "alcista":
+                return "ESPERAR", confianza, indicadores
+
+        if tendencia_h == "lateral" and confianza < 70:
             return "ESPERAR", confianza, indicadores
 
-        # SEÑAL DE APERTURA SHORT
-        if confianza >= 75:
+        umbral = perfil["min_confianza"]
+        if confianza >= umbral:
             indicadores["sl_usado"] = stop_loss_dinamico
             indicadores["tp_usado"] = take_profit_dinamico
             return "ABRIR_SHORT", confianza, indicadores
 
         return "ESPERAR", confianza, indicadores
 
-    # ------------------------------------------------------------
-    # EJECUCION: ABRIR SHORT (SELL en futuros = abrir corto)
-    # ------------------------------------------------------------
+
     def ejecutar_abrir_short(self, par, capital, indicadores):
         precio = self.obtener_precio(par["symbol"])
         if not precio:
