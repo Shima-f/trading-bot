@@ -247,7 +247,11 @@ class SmartTradingBotShort:
         cierres = [k["close"] for k in klines_5m]
         volumenes = [k["volume"] for k in klines_5m]
         precio = cierres[-1]
-        atr = self.calcular_atr(klines_5m)
+        atr_5m = self.calcular_atr(klines_5m)
+        # ATR de 1H para SL/TP (mas representativo de volatilidad real)
+        klines_1h_atr = self.obtener_klines(par["symbol"], "1h", 20)
+        atr_1h = self.calcular_atr(klines_1h_atr) if len(klines_1h_atr) > 14 else atr_5m * 3
+        atr = atr_1h  # Usar ATR 1H para calculos de SL/TP
         atr_pct = (atr / precio) * 100 if precio > 0 else 0
 
         rsi_5m = self.calcular_rsi(cierres)
@@ -305,8 +309,8 @@ class SmartTradingBotShort:
         confianza = max(0, min(100, puntos))
 
         sl_mult = perfil["sl_mult"]
-        stop_loss_dinamico = max(0.4, min(1.2, atr_pct * sl_mult))
-        take_profit_dinamico = max(0.6, stop_loss_dinamico * 1.5)
+        stop_loss_dinamico = max(0.8, min(2.0, atr_pct * sl_mult))
+        take_profit_dinamico = max(1.2, stop_loss_dinamico * 1.5)
 
         indicadores = {
             "rsi_5m": round(rsi_5m, 1),
