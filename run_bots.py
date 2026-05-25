@@ -1,18 +1,36 @@
 import os, sys, json, subprocess, threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs
 
 PORT = int(os.environ.get("PORT", 8080))
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        path = self.path.split("?")[0]
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/long":
             self._json("bot_state.json")
         elif path == "/short":
             self._json("bot_short_state.json")
         elif path in ("/", "/dashboard.html"):
             self._html("dashboard.html")
+        else:
+            self.send_response(404); self.end_headers()
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/pause":
+            Path("PAUSA.txt").write_text("pause requested")
+            self._respond(200, {"status": "pausa solicitada"})
+        elif path == "/close":
+            qs = parse_qs(parsed.query)
+            symbol = qs.get("symbol", [""])[0]
+            side = qs.get("side", [""])[0]
+            fname = f"CERRAR_{symbol}_{side}.txt"
+            Path(fname).write_text(f"close {symbol} {side}")
+            self._respond(200, {"status": f"cierre solicitado: {symbol} {side}"})
         else:
             self.send_response(404); self.end_headers()
 
@@ -36,6 +54,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
         except FileNotFoundError:
             self.send_response(404); self.end_headers()
+
+    def _respond(self, code, obj):
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(json.dumps(obj).encode())
 
     def log_message(self, format, *args):
         pass
