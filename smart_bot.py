@@ -70,11 +70,6 @@ PERFIL_PARES = {
     "SOLUSDT": {"beta": 1.5, "rsi_buy": 28, "rsi_sell": 60, "sl_max": 2.2},
     "XRPUSDT": {"beta": 1.3, "rsi_buy": 27, "rsi_sell": 58, "sl_max": 2.0},
 },
-    "ETHUSDT": {"beta": 1.15, "sl_mult": 2.2, "min_confianza": 60},
-    "BNBUSDT": {"beta": 0.9, "sl_mult": 2.0, "min_confianza": 60},
-    "SOLUSDT": {"beta": 1.5, "sl_mult": 2.5, "min_confianza": 65},
-    "XRPUSDT": {"beta": 1.3, "sl_mult": 2.3, "min_confianza": 62},
-}
 class SmartTradingBot:
 
     def __init__(self):
