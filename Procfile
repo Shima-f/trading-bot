@@ -1,1 +1,1 @@
-web: python run_bots.py
+web: python swing_bot_v7.py
