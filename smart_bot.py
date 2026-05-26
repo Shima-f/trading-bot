@@ -62,12 +62,14 @@ def api_get(url):
     return json.loads(req.read())
 
 
-# Perfil de volatilidad por par (basado en datos historicos)
-# beta: cuanto se mueve vs BTC (>1 = mas volatil)
-# sl_mult: multiplicador de ATR para SL (alts volatiles necesitan mas margen)
-# min_confianza: umbral minimo ajustado por volatilidad
+# Perfiles de volatilidad por par
 PERFIL_PARES = {
-    "BTCUSDT": {"beta": 1.0, "sl_mult": 2.0, "min_confianza": 60},
+    "BTCUSDT": {"beta": 1.0, "rsi_buy": 28, "rsi_sell": 58, "sl_max": 1.5},
+    "ETHUSDT": {"beta": 1.15, "rsi_buy": 27, "rsi_sell": 57, "sl_max": 1.8},
+    "BNBUSDT": {"beta": 0.9, "rsi_buy": 25, "rsi_sell": 55, "sl_max": 1.5},
+    "SOLUSDT": {"beta": 1.5, "rsi_buy": 28, "rsi_sell": 60, "sl_max": 2.2},
+    "XRPUSDT": {"beta": 1.3, "rsi_buy": 27, "rsi_sell": 58, "sl_max": 2.0},
+},
     "ETHUSDT": {"beta": 1.15, "sl_mult": 2.2, "min_confianza": 60},
     "BNBUSDT": {"beta": 0.9, "sl_mult": 2.0, "min_confianza": 60},
     "SOLUSDT": {"beta": 1.5, "sl_mult": 2.5, "min_confianza": 65},
@@ -209,11 +211,11 @@ class SmartTradingBot:
         volumenes = [k["volume"] for k in klines_5m]
         precio = cierres[-1]
         atr_5m = self.calcular_atr(klines_5m)
-        # ATR de 1H para SL/TP (mas representativo de volatilidad real)
-        klines_1h_atr = self.obtener_klines(par["symbol"], "1h", 20)
-        atr_1h = self.calcular_atr(klines_1h_atr) if len(klines_1h_atr) > 14 else atr_5m * 3
-        atr = atr_1h  # Usar ATR 1H para calculos de SL/TP
-        atr_pct = (atr / precio) * 100 if precio > 0 else 0
+
+        # ATR de 1H para SL realista
+        klines_1h = self.obtener_klines(par["symbol"], "1h", 20)
+        atr_1h = self.calcular_atr(klines_1h) if len(klines_1h) > 14 else atr_5m * 3
+        atr_pct = (atr_1h / precio) * 100 if precio > 0 else 0
 
         rsi_5m = self.calcular_rsi(cierres)
         ema9 = self.calcular_ema(cierres, 9)
@@ -221,68 +223,84 @@ class SmartTradingBot:
         ema50 = self.calcular_ema(cierres, 50)
 
         tendencia_h, rsi_1h = self.tendencia_1h(par["symbol"])
+        perfil = PERFIL_PARES.get(par["symbol"], {"beta": 1.0, "rsi_buy": 28, "rsi_sell": 58, "sl_max": 1.5})
 
-        # Perfil de volatilidad del par
-        perfil = PERFIL_PARES.get(par["symbol"], {"beta": 1.0, "sl_mult": 2.0, "min_confianza": 60})
-
+        # Volumen: spike indica panico o capitulacion
         vol_spike = False
         if len(volumenes) >= 20:
             avg_vol = sum(volumenes[-20:-1]) / 19
             vol_spike = volumenes[-1] >= avg_vol * 1.3
 
-        # --- SCORING v5 ---
+        # ============================================
+        # SCORING MEAN REVERSION
+        # La logica es INVERSA al momentum:
+        #   RSI bajo = OPORTUNIDAD de compra (no peligro)
+        #   RSI alto = OPORTUNIDAD de venta (no confirmacion)
+        # ============================================
         puntos = 0
 
-        # Tendencia 1H (lateral ahora suma puntos)
-        if tendencia_h == "alcista":
-            puntos += 25
-        elif tendencia_h == "lateral":
-            puntos += 10
-        elif tendencia_h == "bajista":
-            puntos -= 25
+        # 1. RSI SOBREVENDIDO = señal principal de compra
+        rsi_buy = perfil["rsi_buy"]
+        if rsi_5m < rsi_buy - 5:
+            puntos += 35  # muy sobrevendido = señal fuerte
+        elif rsi_5m < rsi_buy:
+            puntos += 25  # sobrevendido = buena señal
+        elif rsi_5m < rsi_buy + 8:
+            puntos += 10  # acercandose a zona de compra
+        elif rsi_5m > 65:
+            puntos -= 20  # sobrecomprado = NO comprar
 
-        # EMAs apiladas (mas granular)
-        if precio > ema9 > ema21 > ema50:
-            puntos += 20
-        elif precio > ema9 > ema21:
-            puntos += 12
-        elif precio > ema9:
-            puntos += 5
+        # 2. Precio cerca de soporte (EMA como soporte dinamico)
+        if precio <= ema21 * 1.002:
+            puntos += 15  # precio tocando o debajo de EMA21 = soporte
+        if precio <= ema50 * 1.002:
+            puntos += 10  # tocando EMA50 = soporte fuerte
 
-        # RSI: sobrevendido en uptrend = oportunidad de rebote
-        # Historicamente RSI < 30 en BTC rebota >0.5% en 70%+ de los casos
-        if 35 <= rsi_5m <= 55:
-            puntos += 15
-        elif 28 <= rsi_5m < 35:
-            puntos += 10
-        elif rsi_5m > 70:
-            puntos -= 15
-
-        # Volume spike (umbral relajado a 1.3x)
-        if vol_spike:
-            puntos += 10
-
-        # 3 velas verdes consecutivas (antes eran 5)
-        ultimos_3 = cierres[-3:]
-        if all(ultimos_3[i] <= ultimos_3[i+1] for i in range(len(ultimos_3)-1)):
-            puntos += 10
-
-        # Engulfing alcista: patron de reversion
+        # 3. Vela de reversion alcista (señal de rebote)
         if len(klines_5m) >= 3:
             prev = klines_5m[-2]
             curr = klines_5m[-1]
+            # Hammer: mecha inferior larga, cuerpo chico arriba
+            body = abs(curr["close"] - curr["open"])
+            lower_wick = min(curr["close"], curr["open"]) - curr["low"]
+            if lower_wick > body * 2 and body > 0:
+                puntos += 15  # hammer = rebote probable
+            # Engulfing alcista
             if prev["close"] < prev["open"] and curr["close"] > curr["open"]:
-                if curr["close"] > prev["open"]:
-                    puntos += 10
+                if curr["close"] > prev["open"] and curr["open"] < prev["close"]:
+                    puntos += 15
+
+        # 4. Volumen en sobrevendido = capitulacion (señal de piso)
+        if vol_spike and rsi_5m < rsi_buy + 5:
+            puntos += 10
+
+        # 5. Tendencia 1H como contexto (no como filtro duro)
+        if tendencia_h == "alcista":
+            puntos += 10  # rebote en uptrend = alta probabilidad
+        elif tendencia_h == "lateral":
+            puntos += 5   # rebote en lateral = ok
+        elif tendencia_h == "bajista":
+            puntos -= 5   # rebote en downtrend = mas riesgo pero posible
+
+        # 6. RSI 1H tambien sobrevendido = doble confirmacion
+        if rsi_1h < 35:
+            puntos += 10
+
+        # 7. Minimo reciente como referencia de soporte
+        min_20 = min(k["low"] for k in klines_5m[-20:])
+        if precio < min_20 * 1.003:
+            puntos += 10  # cerca del minimo de 20 velas
 
         confianza = max(0, min(100, puntos))
 
-        # --- SL/TP DINAMICOS v5 ---
-        # SL = ATR * multiplicador del par, min 0.4%, max 1.2%
-        # TP = 1.5x SL, min 0.6%
-        sl_mult = perfil["sl_mult"]
-        stop_loss_dinamico = max(0.8, min(2.0, atr_pct * sl_mult))
-        take_profit_dinamico = max(1.2, stop_loss_dinamico * 1.5)
+        # SL basado en minimo reciente (soporte real, no %)
+        min_reciente = min(k["low"] for k in klines_5m[-10:])
+        sl_desde_minimo = ((precio - min_reciente) / precio) * 100 + 0.15
+        sl_maximo = perfil["sl_max"]
+        stop_loss_dinamico = max(0.5, min(sl_maximo, sl_desde_minimo))
+
+        # TP: objetivo RSI recuperado (historicamente ~0.5-1.5% de movimiento)
+        take_profit_dinamico = max(0.8, stop_loss_dinamico * 2.0)
 
         indicadores = {
             "rsi_5m": round(rsi_5m, 1),
@@ -296,7 +314,10 @@ class SmartTradingBot:
             "tp": round(take_profit_dinamico, 2)
         }
 
-        # --- GESTION POSICION ABIERTA v5 ---
+        # ============================================
+        # GESTION DE POSICION ABIERTA
+        # Salida inteligente: RSI recuperado = tomar ganancia
+        # ============================================
         if par["symbol"] in self.posiciones:
             pos = self.posiciones[par["symbol"]]
 
@@ -306,63 +327,54 @@ class SmartTradingBot:
                 self.max_precios[par["symbol"]] = precio
 
             ganancia_usd = (precio - pos["precio_entrada"]) * pos["qty"]
+            ganancia_pct = ((precio - pos["precio_entrada"]) / pos["precio_entrada"]) * 100
             max_p = self.max_precios[par["symbol"]]
-            caida_usd = (max_p - precio) * pos["qty"]
+            ganancia_max_pct = ((max_p - pos["precio_entrada"]) / pos["precio_entrada"]) * 100
+            caida_desde_max_pct = ((max_p - precio) / max_p) * 100
 
-            # STOP LOSS DURO basado en % desde entrada
-            sl_pct = pos.get("stop_loss", 0.5)
-            sl_precio = pos["precio_entrada"] * (1 - sl_pct / 100)
-            if precio <= sl_precio:
+            # SALIDA 1: RSI recuperado = tesis cumplida, tomar ganancia
+            rsi_sell = perfil["rsi_sell"]
+            if rsi_5m > rsi_sell and ganancia_usd > 0:
                 return "VENDER", confianza, indicadores
 
-            # TAKE PROFIT duro
+            # SALIDA 2: Take profit duro
             tp_pct = pos.get("take_profit", 1.0)
-            tp_precio = pos["precio_entrada"] * (1 + tp_pct / 100)
-            if precio >= tp_precio:
+            if ganancia_pct >= tp_pct:
                 return "VENDER", confianza, indicadores
 
-            # Sin ganancia significativa: paciencia
-            if ganancia_usd < 0.30:
-                if tendencia_h == "bajista" and rsi_5m > 65:
-                    return "VENDER", confianza, indicadores
-                return "ESPERAR", confianza, indicadores
+            # SALIDA 3: Trailing a breakeven
+            # Si alcanzo +0.3%+ y retrocede a casi 0, salir en breakeven
+            if ganancia_max_pct > 0.3 and ganancia_pct < 0.05:
+                return "VENDER", confianza, indicadores
 
-            # TRAILING proporcional a la ganancia maxima
-            ganancia_max_usd = (max_p - pos["precio_entrada"]) * pos["qty"]
+            # SALIDA 4: Trailing proporcional en ganancias grandes
+            if ganancia_max_pct > 0.8 and caida_desde_max_pct > ganancia_max_pct * 0.4:
+                return "VENDER", confianza, indicadores
 
-            if 0.30 <= ganancia_usd < 1.00:
-                if ganancia_max_usd > 0.30 and caida_usd > ganancia_max_usd * 0.50:
-                    return "VENDER", confianza, indicadores
-                if tendencia_h == "bajista":
-                    return "VENDER", confianza, indicadores
-                return "ESPERAR", confianza, indicadores
+            # SALIDA 5: Stop loss de emergencia (tesis invalidada)
+            sl_pct = pos.get("stop_loss", 1.0)
+            if ganancia_pct <= -sl_pct:
+                return "VENDER", confianza, indicadores
 
-            if 1.00 <= ganancia_usd < 3.00:
-                if caida_usd > ganancia_max_usd * 0.40:
-                    return "VENDER", confianza, indicadores
-                if tendencia_h == "bajista" and rsi_5m > 60:
-                    return "VENDER", confianza, indicadores
-                return "ESPERAR", confianza, indicadores
+            # SALIDA 6: Tendencia 1H se invirtio a bajista estando en perdida
+            if tendencia_h == "bajista" and ganancia_usd < -0.20:
+                return "VENDER", confianza, indicadores
 
-            if ganancia_usd >= 3.00:
-                if caida_usd > ganancia_max_usd * 0.35:
-                    return "VENDER", confianza, indicadores
-                return "ESPERAR", confianza, indicadores
-
-        # --- FILTRO BTC v5: relajado ---
-        # Lateral tambien permite operar (antes solo alcista)
-        if par["symbol"] != "BTCUSDT":
-            btc_tend, _ = self.tendencia_1h("BTCUSDT")
-            if btc_tend == "bajista":
-                return "ESPERAR", confianza, indicadores
-
-        # Lateral requiere confianza mas alta
-        if tendencia_h == "lateral" and confianza < 70:
             return "ESPERAR", confianza, indicadores
 
-        # UMBRAL ajustado por par
-        umbral = perfil["min_confianza"]
-        if confianza >= umbral:
+        # ============================================
+        # FILTROS DE ENTRADA
+        # ============================================
+
+        # Filtro BTC: si BTC esta bajista fuerte, no comprar alts
+        # Pero si es lateral o alcista, ok
+        if par["symbol"] != "BTCUSDT":
+            btc_tend, btc_rsi = self.tendencia_1h("BTCUSDT")
+            if btc_tend == "bajista" and btc_rsi < 30:
+                return "ESPERAR", confianza, indicadores
+
+        # UMBRAL DE ENTRADA: 55% (mean reversion necesita menos confirmacion)
+        if confianza >= 55:
             indicadores["sl_usado"] = stop_loss_dinamico
             indicadores["tp_usado"] = take_profit_dinamico
             return "COMPRAR", confianza, indicadores
