@@ -707,7 +707,7 @@ async function update(){
   for(const data of [ld, sd]){
     if(data && data.posiciones) Object.keys(data.posiciones).forEach(s => allSymbols.add(s));
   }
-  window.precios = await fetchPrices([...allSymbols]);
+  try { window.precios = await fetchPrices([...allSymbols]); } catch(e){ window.precios = {}; }
   const l = renderBot('long', ld, false);
   const s = renderBot('short', sd, true);
   renderAgg(l, s);
