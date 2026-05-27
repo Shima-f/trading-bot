@@ -704,6 +704,22 @@ class StatusHandler(BaseHTTPRequestHandler):
             self._json("bot_state.json")
         elif path in ("/", "/dashboard.html"):
             self._html("dashboard.html")
+        elif path == "/price":
+            from urllib.parse import parse_qs
+            qs = parse_qs(urlparse(self.path).query)
+            sym = qs.get("symbol", [""])[0]
+            if sym:
+                try:
+                    import urllib.request, ssl
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    r = urllib.request.urlopen(f"https://fapi.binance.com/fapi/v1/ticker/price?symbol={sym}", timeout=5, context=ctx)
+                    self._respond(200, json.loads(r.read()))
+                except Exception as e:
+                    self._respond(200, {"price": "0", "error": str(e)})
+            else:
+                self._respond(400, {"error": "missing symbol"})
         else:
             self.send_response(404)
             self.end_headers()
