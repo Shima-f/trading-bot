@@ -622,26 +622,11 @@ class SwingTradingBot:
             "posiciones": pos_data or {},
             "ultimos_trades": self.historial[-20:]
         }
-        # bot_state.json: estado completo (columna izquierda - historial)
-        with open("bot_state.json", "w", encoding="utf-8") as f:
-            json.dump(estado, f, indent=2, ensure_ascii=False)
-
-        # bot_short_state.json: solo posicion activa (columna derecha)
-        pos_activa = {}
-        if self.posicion and self.posicion.get("side") == "SHORT":
-            pos_activa = {k: v for k, v in estado.items()}
-        elif self.posicion and self.posicion.get("side") == "LONG":
-            # Posicion LONG va en columna izquierda, derecha muestra historial short
-            estado_short = {k: v for k, v in estado.items()}
-            estado_short["posiciones"] = {}
-            with open("bot_short_state.json", "w", encoding="utf-8") as f:
-                json.dump(estado_short, f, indent=2, ensure_ascii=False)
-            # Reescribir bot_state.json con la posicion LONG
-            with open("bot_state.json", "w", encoding="utf-8") as f:
+        # Escribir el mismo estado en ambos archivos
+        # El dashboard usa el campo side de cada posicion para mostrar correctamente
+        for fname in ["bot_state.json", "bot_short_state.json"]:
+            with open(fname, "w", encoding="utf-8") as f:
                 json.dump(estado, f, indent=2, ensure_ascii=False)
-            return
-        with open("bot_short_state.json", "w", encoding="utf-8") as f:
-            json.dump(pos_activa if pos_activa else {k: v for k, v in estado.items() if k != "posiciones"} | {"posiciones": {}}, f, indent=2, ensure_ascii=False)
 
     # ─────────────────────────────────────────────
     # CICLO PRINCIPAL
