@@ -732,20 +732,22 @@ function renderUnifiedPositions() {
 
 async function update(){
   const [ld, sd] = await Promise.all([fetchBot(LONG_URL), fetchBot(SHORT_URL)]);
-  // Obtener precios en tiempo real para posiciones abiertas
-  const allSymbols = new Set();
+  // Juntar posiciones antes de renderizar
+  const allPos = {};
   for(const data of [ld, sd]){
-    if(data && data.posiciones) Object.keys(data.posiciones).forEach(s => allSymbols.add(s));
+    if(data && data.posiciones){
+      Object.entries(data.posiciones).forEach(([sym, pos]) => { allPos[sym] = pos; });
+    }
   }
-  window.precios = await fetchPrices([...allSymbols]);
+  window._allPos = allPos;
+  const syms = Object.keys(allPos);
+  window.precios = syms.length > 0 ? await fetchPrices(syms) : {};
   const l = renderBot('long', ld, false);
   const s = renderBot('short', sd, true);
   renderAgg(l, s);
   renderUnifiedPositions();
-  window._allPos = {}; // reset para que no acumule duplicados entre ciclos
-    $('last-update').textContent = 'Updated ' + new Date().toTimeString().slice(0,8);
+  $('last-update').textContent = 'Updated ' + new Date().toTimeString().slice(0,8);
 }
-
 update();
 setInterval(update, 10000);
 </script>
