@@ -582,7 +582,8 @@ function renderBot(prefix, data, isShort){
       let pnlHtml = '<div class="pc-label">P&L</div><div class="pc-pnl">—</div>';
       let precioCurrHtml = '';
       if (precioActual > 0 && p.entrada > 0) {
-        const rawPct = isShort
+        const posIsShort = (p.side === 'SHORT');
+        const rawPct = posIsShort
           ? ((p.entrada - precioActual) / p.entrada) * 100
           : ((precioActual - p.entrada) / p.entrada) * 100;
         const levPct = rawPct * (p.leverage || 3);
