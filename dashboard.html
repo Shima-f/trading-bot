@@ -572,7 +572,7 @@ function renderBot(prefix, data, isShort){
   if(symbols.length === 0){
     pc.innerHTML = '<div class="empty-state">Sin posiciones abiertas</div>';
   } else {
-    const side = p.side || (isShort ? 'SHORT' : 'LONG');
+    const side = (p && p.side) ? p.side : (isShort ? 'SHORT' : 'LONG');
     const cls = isShort ? 'short-c' : 'long-c';
     pc.innerHTML = symbols.map(sym => {
       const p = posiciones[sym];
