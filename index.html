@@ -511,7 +511,7 @@ const LONG_URL  = `https://trading-bot-production-e3d5.up.railway.app/long`;
 const SHORT_URL = `https://trading-bot-production-e3d5.up.railway.app/long`;
 
 // === Helpers ===
-const $  = id => document.getElementById(id);
+const $  = id => document.getElementById(id) || {textContent:"",className:"",innerHTML:""};
 const fU = n => '$' + (n??0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fP = n => ((n??0)>=0?'+':'') + (n??0).toFixed(2) + '%';
 const fN = n => (n??0).toFixed(2);
@@ -575,8 +575,8 @@ function renderBot(prefix, data, isShort){
   statusEl.className = 'status-pill ' + (estado==='activo'?'on':'off');
   statusEl.innerHTML = '<span class="sdot"></span>' + (data.estado||'?').toUpperCase();
 
-  $(prefix+'-capital').textContent = fU(data.capital_actual);
-  $(prefix+'-cycle').textContent = 'Ciclo ' + (data.ciclo??'--');
+  if($(prefix+'-capital')) $(prefix+'-capital').textContent = fU(data.capital_actual);
+  if($(prefix+'-cycle')) $(prefix+'-cycle').textContent = 'Ciclo ' + (data.ciclo??'--');
 
   const pnlEl = $(prefix+'-pnl');
   pnlEl.textContent = fU(data.ganancia_total);
