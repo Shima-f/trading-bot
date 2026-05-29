@@ -724,13 +724,38 @@ class StatusHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
     def do_POST(self):
         from pathlib import Path
-        from urllib.parse import urlparse, parse_qs
+        from urllib.parse import urlparse
         parsed = urlparse(self.path)
-        if parsed.path == "/pause":
+        path = parsed.path
+        if path == "/pause":
             Path("PAUSA.txt").write_text("pause")
             self._respond(200, {"status": "pausa solicitada"})
+        elif path == "/close_now":
+            import threading
+            def do_close():
+                try:
+                    if _bot_instance and _bot_instance.posicion:
+                        b = _bot_instance
+                        precio = b.obtener_precio(b.posicion["symbol"])
+                        if precio:
+                            side = b.posicion["side"]
+                            entrada = b.posicion["precio_entrada"]
+                            gp = ((entrada-precio)/entrada*100) if side=="SHORT" else ((precio-entrada)/entrada*100)
+                            gu = (gp * b.posicion.get("leverage",3) / 100) * b.posicion["capital_usado"]
+                            b.cerrar_posicion(precio, gp, gu, "CIERRE MANUAL")
+                except Exception as e:
+                    log.error(f"Error cierre manual: {e}")
+            threading.Thread(target=do_close, daemon=True).start()
+            self._respond(200, {"status": "cerrando"})
         else:
             self.send_response(404)
             self.end_headers()
@@ -777,8 +802,12 @@ def start_web():
     server.serve_forever()
 
 
+_bot_instance = None
+
 if __name__ == "__main__":
     t = threading.Thread(target=start_web, daemon=True)
     t.start()
+    global _bot_instance
     bot = SwingTradingBot()
+    _bot_instance = bot
     bot.run()
