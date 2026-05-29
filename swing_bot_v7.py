@@ -309,9 +309,13 @@ class SwingTradingBot:
             direccion = "NEUTRAL"
             confianza = max(long_conf, short_conf)
 
-        # SL y TP basados en ATR 4H
-        sl_pct = max(1.5, min(5.0, atr_pct * perfil["sl_mult"]))
-        tp_pct = max(2.5, min(10.0, atr_pct * perfil["tp_mult"]))
+        # SL y TP calibrados por par usando limites especificos
+        sl_min = perfil.get("sl_min", 1.5)
+        sl_max = perfil.get("sl_max", 4.0)
+        tp_min = perfil.get("tp_min", 2.5)
+        tp_max = perfil.get("tp_max", 8.0)
+        sl_pct = max(sl_min, min(sl_max, atr_pct * perfil["sl_mult"]))
+        tp_pct = max(tp_min, min(tp_max, atr_pct * perfil["tp_mult"]))
 
         indicadores = {
             "precio": round(precio, 2),
