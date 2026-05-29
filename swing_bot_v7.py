@@ -804,10 +804,11 @@ def start_web():
 
 _bot_instance = None
 
+_bot_instance = None
+
 if __name__ == "__main__":
     t = threading.Thread(target=start_web, daemon=True)
     t.start()
-    global _bot_instance
     bot = SwingTradingBot()
     _bot_instance = bot
     bot.run()
